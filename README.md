@@ -11,7 +11,7 @@ Webapp responsive para gestionar múltiples cuentas ARCA, con dashboard de factu
 
 ## Configuración Inicial
 
-### 1. Instalar dependencias
+### 1. Instalar dependencias 
 
 ```bash
 npm install
