@@ -73,7 +73,7 @@ cp .dev.vars.example .dev.vars
 2. Iniciar servidor de desarrollo:
 ```bash
 npm run dev
-```
+``` 
 
 Esto iniciará un servidor local en `http://localhost:8788` (puerto por defecto de Pages)
 
