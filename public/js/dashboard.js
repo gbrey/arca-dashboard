@@ -46,7 +46,9 @@ function dashboardApp() {
           this.accounts = data.accounts || [];
           
           if (this.accounts.length > 0 && !this.selectedAccountId) {
-            this.selectedAccountId = this.accounts[0].id;
+            // Seleccionar cuenta default si existe, sino la primera
+            const defaultAccount = this.accounts.find(acc => acc.is_default);
+            this.selectedAccountId = defaultAccount ? defaultAccount.id : this.accounts[0].id;
             await this.loadDashboard();
           }
         }

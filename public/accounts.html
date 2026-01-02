@@ -191,7 +191,10 @@
         <template x-for="account in accounts" :key="account.id">
           <div class="border rounded-lg p-4 flex justify-between items-center">
             <div>
-              <h3 class="font-semibold" x-text="account.name"></h3>
+              <h3 class="font-semibold">
+                <span x-show="account.is_default" class="text-yellow-500">⭐</span>
+                <span x-text="account.name"></span>
+              </h3>
               <p class="text-sm text-gray-500" x-text="account.provider === 'afip_sdk' ? 'AFIP SDK' : 'TusFacturasApp'"></p>
               <p class="text-xs text-gray-400" x-text="'CUIT: ' + (account.cuit || 'N/A')"></p>
               <div class="mt-2 flex items-center space-x-4 flex-wrap gap-2">
@@ -219,6 +222,14 @@
               <p class="text-xs text-gray-400 mt-1" x-text="'Conectada: ' + formatDate(account.created_at)"></p>
             </div>
             <div class="flex flex-col space-y-2">
+              <button 
+                @click="setAsDefault(account.id)" 
+                class="text-yellow-600 hover:underline text-sm text-left font-medium"
+                :class="account.is_default ? 'font-bold' : ''"
+              >
+                <span x-show="!account.is_default">⭐ Marcar como predeterminada</span>
+                <span x-show="account.is_default">⭐ Cuenta predeterminada</span>
+              </button>
               <a :href="'/edit-account.html?id=' + account.id" class="text-blue-600 hover:underline text-sm font-medium">
                 ✏️ Editar
               </a>
@@ -546,6 +557,35 @@
         
         formatDate(timestamp) {
           return new Date(timestamp * 1000).toLocaleDateString('es-AR');
+        },
+        
+        async setAsDefault(accountId) {
+          try {
+            const response = await fetch(`/api/arca/accounts/${accountId}/set-default`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              }
+            });
+            
+            if (response.ok) {
+              this.success = 'Cuenta marcada como predeterminada';
+              this.error = '';
+              await this.loadAccounts();
+              // Recargar después de un momento para actualizar la UI
+              setTimeout(() => {
+                this.success = '';
+              }, 3000);
+            } else {
+              const data = await response.json();
+              this.error = data.error || 'Error al marcar cuenta como predeterminada';
+              this.success = '';
+            }
+          } catch (error) {
+            console.error('Error:', error);
+            this.error = 'Error de conexión';
+            this.success = '';
+          }
         },
         
         logout() {

@@ -26,6 +26,7 @@ export interface ArcaAccount {
   cert_encrypted?: string | null; // Certificado digital (para producción)
   key_encrypted?: string | null; // Clave privada (para producción)
   provider: 'afip_sdk' | 'tusfacturas';
+  is_default?: number; // 1 si es la cuenta por defecto, 0 si no
   created_at: number;
 }
 

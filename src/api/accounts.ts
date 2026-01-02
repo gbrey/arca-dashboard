@@ -12,22 +12,47 @@ export async function getArcaAccounts(request: Request, env: Env): Promise<Respo
   }
   
   try {
-    const accounts = await env.DB.prepare(
-      `SELECT 
-        a.id, 
-        a.user_id, 
-        a.name, 
-        a.provider, 
-        a.cuit,
-        CASE WHEN a.cert_encrypted IS NOT NULL AND a.cert_encrypted != '' THEN 1 ELSE 0 END as has_cert,
-        CASE WHEN a.key_encrypted IS NOT NULL AND a.key_encrypted != '' THEN 1 ELSE 0 END as has_key,
-        CASE WHEN a.afip_username_encrypted IS NOT NULL AND a.afip_username_encrypted != '' THEN 1 ELSE 0 END as has_credentials,
-        a.created_at,
-        bl.category as monotributo_category
-      FROM arca_accounts a
-      LEFT JOIN billing_limits bl ON a.id = bl.arca_account_id
-      WHERE a.user_id = ?`
-    ).bind(userId).all<any>();
+    // Intentar obtener cuentas con is_default, si falla (columna no existe), usar query sin is_default
+    let accounts: any;
+    try {
+      accounts = await env.DB.prepare(
+        `SELECT 
+          a.id, 
+          a.user_id, 
+          a.name, 
+          a.provider, 
+          a.cuit,
+          COALESCE(a.is_default, 0) as is_default,
+          CASE WHEN a.cert_encrypted IS NOT NULL AND a.cert_encrypted != '' THEN 1 ELSE 0 END as has_cert,
+          CASE WHEN a.key_encrypted IS NOT NULL AND a.key_encrypted != '' THEN 1 ELSE 0 END as has_key,
+          CASE WHEN a.afip_username_encrypted IS NOT NULL AND a.afip_username_encrypted != '' THEN 1 ELSE 0 END as has_credentials,
+          a.created_at,
+          bl.category as monotributo_category
+        FROM arca_accounts a
+        LEFT JOIN billing_limits bl ON a.id = bl.arca_account_id
+        WHERE a.user_id = ?
+        ORDER BY COALESCE(a.is_default, 0) DESC, a.created_at ASC`
+      ).bind(userId).all<any>();
+    } catch (error: any) {
+      // Si falla, la columna is_default no existe, usar query sin ella
+      accounts = await env.DB.prepare(
+        `SELECT 
+          a.id, 
+          a.user_id, 
+          a.name, 
+          a.provider, 
+          a.cuit,
+          CASE WHEN a.cert_encrypted IS NOT NULL AND a.cert_encrypted != '' THEN 1 ELSE 0 END as has_cert,
+          CASE WHEN a.key_encrypted IS NOT NULL AND a.key_encrypted != '' THEN 1 ELSE 0 END as has_key,
+          CASE WHEN a.afip_username_encrypted IS NOT NULL AND a.afip_username_encrypted != '' THEN 1 ELSE 0 END as has_credentials,
+          a.created_at,
+          bl.category as monotributo_category
+        FROM arca_accounts a
+        LEFT JOIN billing_limits bl ON a.id = bl.arca_account_id
+        WHERE a.user_id = ?
+        ORDER BY a.created_at ASC`
+      ).bind(userId).all<any>();
+    }
     
     // Formatear respuesta con información de certificados
     const formattedAccounts = accounts.results.map((acc: any) => ({
@@ -35,6 +60,7 @@ export async function getArcaAccounts(request: Request, env: Env): Promise<Respo
       name: acc.name,
       provider: acc.provider,
       cuit: acc.cuit,
+      is_default: acc.is_default === 1 || acc.is_default === true,
       has_certificate: acc.has_cert === 1 && acc.has_key === 1,
       has_credentials: acc.has_credentials === 1,
       created_at: acc.created_at,
@@ -352,6 +378,68 @@ export async function connectArcaAccount(
     });
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message || 'Error al conectar cuenta' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// Marcar cuenta como default
+export async function setDefaultAccount(request: Request, env: Env, accountId: string): Promise<Response> {
+  const userId = await getAuthUser(request, env);
+  if (!userId) {
+    return new Response(JSON.stringify({ error: 'No autorizado' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  
+  try {
+    // Verificar que la cuenta pertenece al usuario
+    const account = await env.DB.prepare(
+      'SELECT id FROM arca_accounts WHERE id = ? AND user_id = ?'
+    ).bind(accountId, userId).first();
+    
+    if (!account) {
+      return new Response(JSON.stringify({ error: 'Cuenta no encontrada' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Primero, desmarcar todas las cuentas del usuario como default
+    await env.DB.prepare(
+      'UPDATE arca_accounts SET is_default = 0 WHERE user_id = ?'
+    ).bind(userId).run();
+    
+    // Luego, marcar la cuenta seleccionada como default
+    await env.DB.prepare(
+      'UPDATE arca_accounts SET is_default = 1 WHERE id = ? AND user_id = ?'
+    ).bind(accountId, userId).run();
+    
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: 'Cuenta marcada como predeterminada'
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    console.error('[setDefaultAccount] Error:', error);
+    
+    // Si el error es porque la columna no existe, dar mensaje claro
+    if (error.message && error.message.includes('no such column: is_default')) {
+      return new Response(JSON.stringify({ 
+        error: 'La migración de base de datos no se ha ejecutado. Por favor ejecuta: npm run migrate'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    return new Response(JSON.stringify({ 
+      error: error.message || 'Error al marcar cuenta como predeterminada'
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

@@ -2,7 +2,7 @@ import { Env } from '../../src/utils/db';
 import { registerUser, loginUser, getAuthUser } from '../../src/api/auth';
 import { handleInvoices } from '../../src/api/invoices';
 import { handleLimits } from '../../src/api/limits';
-import { getArcaAccounts, connectArcaAccount, getArcaAccount, updateArcaAccount } from '../../src/api/accounts';
+import { getArcaAccounts, connectArcaAccount, getArcaAccount, updateArcaAccount, setDefaultAccount } from '../../src/api/accounts';
 import { getProductionCertificate, registerCuitInAfipSdk } from '../../src/api/certificates';
 
 export const onRequest = async (context: { request: Request; env: Env }) => {
@@ -110,6 +110,12 @@ async function handleArcaAccounts(request: Request, env: Env): Promise<Response>
   if (request.method === 'POST' && pathParts.length === 3 && pathParts[2] === 'connect') {
     const body = await request.json();
     return connectArcaAccount(request, env, body);
+  }
+  
+  // POST /api/arca/accounts/:id/set-default - Marcar cuenta como default
+  if (request.method === 'POST' && pathParts.length === 5 && pathParts[2] === 'accounts' && pathParts[4] === 'set-default') {
+    const accountId = pathParts[3];
+    return setDefaultAccount(request, env, accountId);
   }
   
   return new Response(JSON.stringify({ error: 'Ruta no encontrada' }), {
