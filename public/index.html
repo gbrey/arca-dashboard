@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ARCA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="bg-gray-50" x-data="dashboardApp()" x-init="init()">
+  <!-- Navbar -->
+  <nav class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center space-x-8">
+          <h1 class="text-xl font-bold text-gray-800">ARCA</h1>
+          <!-- Menú de Navegación -->
+          <div class="hidden md:flex items-center space-x-1">
+            <a href="/index.html" class="px-3 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700">
+              Dashboard
+            </a>
+            <a href="/invoices.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Facturas
+            </a>
+            <a href="/accounts.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Cuentas
+            </a>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <select x-model="selectedAccountId" @change="loadDashboard()" class="border rounded px-3 py-1 text-sm">
+            <option value="">Seleccionar cuenta</option>
+            <template x-for="account in accounts" :key="account.id">
+              <option :value="account.id" x-text="account.name + (account.has_certificate ? ' ✓' : ' ⚠')"></option>
+            </template>
+          </select>
+          <button @click="logout()" class="text-gray-600 hover:text-gray-800 text-sm">Salir</button>
+        </div>
+      </div>
+      <!-- Menú móvil -->
+      <div class="md:hidden border-t pt-2 pb-2">
+        <div class="flex space-x-1">
+          <a href="/index.html" class="flex-1 text-center px-3 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700">
+            Dashboard
+          </a>
+          <a href="/invoices.html" class="flex-1 text-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Facturas
+          </a>
+          <a href="/accounts.html" class="flex-1 text-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Cuentas
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+  
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Alertas -->
+    <div x-show="limits.alert_level === 'exceeded'" class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+      <strong>⚠️ Límite Excedido:</strong> Has superado el límite de facturación.
+    </div>
+    <div x-show="limits.alert_level === 'danger'" class="mb-4 p-4 bg-orange-100 border border-orange-400 text-orange-700 rounded">
+      <strong>⚠️ Alerta:</strong> Estás cerca del límite (<span x-text="limits.percentage"></span>% utilizado).
+    </div>
+    <div x-show="limits.alert_level === 'warning'" class="mb-4 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+      <strong>ℹ️ Atención:</strong> Has alcanzado el <span x-text="(limits.alert_threshold * 100)"></span>% del límite.
+    </div>
+    
+    <!-- Cards de Métricas -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <!-- Total Facturado -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-500 mb-2">Total Facturado (12 meses)</h3>
+        <p class="text-3xl font-bold text-gray-900" x-text="formatCurrency(limits.total_billed)"></p>
+        <p class="text-sm text-gray-500 mt-1">Límite: <span x-text="formatCurrency(limits.limit_amount)"></span></p>
+      </div>
+      
+      <!-- Categoría Monotributo -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex justify-between items-start mb-2">
+          <h3 class="text-sm font-medium text-gray-500">Categoría Monotributo</h3>
+          <button 
+            @click="syncMonotributo()" 
+            :disabled="syncingMonotributo"
+            class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+            title="Sincronizar información de monotributo desde AFIP"
+          >
+            <span x-show="!syncingMonotributo">🔄</span>
+            <span x-show="syncingMonotributo">⏳</span>
+          </button>
+        </div>
+        <p class="text-3xl font-bold text-blue-600" x-text="limits.category || 'N/A'"></p>
+        <p class="text-sm text-gray-500 mt-1">Restante: <span x-text="formatCurrency(limits.remaining)"></span></p>
+        <div x-show="limits.next_due_amount" class="mt-2 pt-2 border-t">
+          <p class="text-sm font-medium text-gray-700">Próximo pago:</p>
+          <p class="text-lg font-bold text-green-600" x-text="formatCurrency(limits.next_due_amount)"></p>
+          <p class="text-xs text-gray-500" x-show="limits.next_due_date">
+            Vencimiento: <span x-text="limits.next_due_date"></span>
+          </p>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">
+          <a href="https://www.afip.gob.ar/monotributo/categorias.asp" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 underline">
+            Ver categorías oficiales AFIP
+          </a>
+        </p>
+      </div>
+      
+      <!-- Porcentaje Utilizado -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-500 mb-2">Porcentaje Utilizado</h3>
+        <p class="text-3xl font-bold" 
+           :class="{
+             'text-red-600': limits.percentage >= 100,
+             'text-orange-600': limits.percentage >= 90 && limits.percentage < 100,
+             'text-yellow-600': limits.percentage >= 80 && limits.percentage < 90,
+             'text-green-600': limits.percentage < 80
+           }"
+           x-text="limits.percentage + '%'"></p>
+        <div class="mt-2 bg-gray-200 rounded-full h-2">
+          <div class="bg-blue-600 h-2 rounded-full" 
+               :style="'width: ' + Math.min(limits.percentage, 100) + '%'"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Gráfico de Facturación Mensual -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+      <h2 class="text-xl font-semibold mb-4">Facturación Mensual (Últimos 12 meses)</h2>
+      <canvas id="revenueChart" width="400" height="150"></canvas>
+    </div>
+    
+    <!-- Últimas Facturas -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Últimas Facturas</h2>
+        <div class="flex items-center space-x-4">
+          <button 
+            @click="syncInvoices()" 
+            :disabled="syncing"
+            class="bg-green-600 text-white px-4 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+            title="Sincronizar facturas nuevas desde ARCA"
+          >
+            <span x-show="!syncing">🔄 Sincronizar</span>
+            <span x-show="syncing">Sincronizando...</span>
+          </button>
+          <label class="text-sm text-gray-600">Mostrar:</label>
+          <select x-model="invoiceLimit" @change="loadDashboard()" class="border rounded px-3 py-1 text-sm">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="30">30</option>
+            <option value="50">50</option>
+          </select>
+          <a href="/invoices.html" class="text-blue-600 hover:underline">Ver todas</a>
+        </div>
+      </div>
+      
+      <div x-show="loading" class="text-center py-8">Cargando...</div>
+      
+      <div x-show="!loading && invoices.length === 0" class="text-center py-8 text-gray-500">
+        No hay facturas disponibles
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CUIT</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <template x-for="invoice in invoices.slice(0, invoiceLimit)" :key="invoice.id">
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="formatDate(invoice.date)"></td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="getTipoComprobante(invoice)"></td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="getCuit(invoice) || '-'"></td>
+                <td class="px-6 py-4 text-sm text-gray-900" x-text="invoice.description || 'Sin descripción'"></td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="formatCurrency(invoice.amount)"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
+

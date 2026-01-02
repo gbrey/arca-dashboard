@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editar Cuenta ARCA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-50" x-data="editAccountApp()" x-init="init()">
+  <!-- Navbar -->
+  <nav class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center space-x-8">
+          <h1 class="text-xl font-bold text-gray-800">ARCA</h1>
+          <!-- Menú de Navegación -->
+          <div class="hidden md:flex items-center space-x-1">
+            <a href="/index.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Dashboard
+            </a>
+            <a href="/invoices.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Facturas
+            </a>
+            <a href="/accounts.html" class="px-3 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700">
+              Cuentas
+            </a>
+          </div>
+        </div>
+        <div class="flex items-center">
+          <button @click="logout()" class="text-gray-600 hover:text-gray-800 text-sm">Salir</button>
+        </div>
+      </div>
+      <!-- Menú móvil -->
+      <div class="md:hidden border-t pt-2 pb-2">
+        <div class="flex space-x-1">
+          <a href="/index.html" class="flex-1 text-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Dashboard
+          </a>
+          <a href="/invoices.html" class="flex-1 text-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Facturas
+          </a>
+          <a href="/accounts.html" class="flex-1 text-center px-3 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700">
+            Cuentas
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+  
+  <!-- Main Content -->
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-4">
+      <a href="/accounts.html" class="text-blue-600 hover:underline">← Volver a Cuentas</a>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-semibold mb-4">Editar Cuenta ARCA</h2>
+      
+      <div x-show="error" class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded" x-text="error"></div>
+      <div x-show="success" class="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded" x-text="success"></div>
+      
+      <div x-show="loading" class="text-center py-8">Cargando cuenta...</div>
+      
+      <form x-show="!loading" @submit.prevent="updateAccount()" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de la cuenta</label>
+          <input 
+            type="text" 
+            x-model="account.name" 
+            required
+            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+            placeholder="Mi cuenta ARCA"
+          >
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+          <select x-model="account.provider" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+            <option value="afip_sdk">AFIP SDK</option>
+            <option value="tusfacturas">TusFacturasApp</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Access Token de AFIP SDK</label>
+          <input 
+            type="password" 
+            x-model="account.api_token" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+            placeholder="Dejar vacío para no cambiar"
+          >
+          <p class="mt-1 text-sm text-gray-500">
+            Solo completa este campo si deseas actualizar el Access Token
+          </p>
+        </div>
+        
+        <div class="border-t pt-4 mt-4">
+          <h3 class="text-lg font-semibold mb-3">Credenciales de AFIP</h3>
+          <p class="text-sm text-gray-600 mb-4">Deja vacío para no cambiar</p>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">CUIT</label>
+              <input 
+                type="text" 
+                x-model="account.cuit" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="20123456789"
+                pattern="[0-9]{11}"
+              >
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Usuario de AFIP</label>
+              <input 
+                type="text" 
+                x-model="account.afip_username" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="Tu CUIT o alias de AFIP"
+              >
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña de AFIP</label>
+              <input 
+                type="password" 
+                x-model="account.afip_password" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="Tu contraseña de AFIP"
+              >
+            </div>
+          </div>
+        </div>
+        
+        <div class="border-t pt-4 mt-4">
+          <h3 class="text-lg font-semibold mb-3">Certificados (Opcional)</h3>
+          <p class="text-sm text-gray-600 mb-4">Puedes cargar certificados manualmente o usar el botón para obtenerlos automáticamente</p>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Certificado (.crt) - Base64</label>
+              <textarea 
+                x-model="account.cert" 
+                rows="4"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-xs"
+                placeholder="Pega aquí el contenido del certificado en base64"
+              ></textarea>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Clave Privada (.key) - Base64</label>
+              <textarea 
+                x-model="account.key" 
+                rows="4"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-xs"
+                placeholder="Pega aquí el contenido de la clave privada en base64"
+              ></textarea>
+            </div>
+            
+            <button 
+              type="button"
+              @click="obtainCertificate()" 
+              :disabled="obtainingCert"
+              class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:opacity-50"
+            >
+              <span x-show="!obtainingCert">🔐 Obtener Certificado Automáticamente</span>
+              <span x-show="obtainingCert">Obteniendo certificado...</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="flex space-x-2 pt-4">
+          <button 
+            type="submit" 
+            :disabled="saving"
+            class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            <span x-show="!saving">Guardar Cambios</span>
+            <span x-show="saving">Guardando...</span>
+          </button>
+          <a 
+            href="/accounts.html"
+            class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 text-center"
+          >
+            Cancelar
+          </a>
+        </div>
+      </form>
+    </div>
+  </main>
+  
+  <script>
+    function editAccountApp() {
+      return {
+        accountId: '',
+        account: {
+          name: '',
+          provider: 'afip_sdk',
+          api_token: '',
+          cuit: '',
+          afip_username: '',
+          afip_password: '',
+          cert: '',
+          key: ''
+        },
+        loading: false,
+        saving: false,
+        obtainingCert: false,
+        error: '',
+        success: '',
+        
+        async init() {
+          const token = localStorage.getItem('token');
+          if (!token) {
+            window.location.href = '/login.html';
+            return;
+          }
+          
+          // Obtener accountId de la URL
+          const urlParams = new URLSearchParams(window.location.search);
+          this.accountId = urlParams.get('id');
+          
+          if (!this.accountId) {
+            this.error = 'ID de cuenta no proporcionado';
+            return;
+          }
+          
+          await this.loadAccount();
+        },
+        
+        async loadAccount() {
+          this.loading = true;
+          this.error = '';
+          try {
+            console.log(`[Edit Account] Cargando cuenta ${this.accountId}...`);
+            const response = await fetch(`/api/arca/accounts/${this.accountId}`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              }
+            });
+            
+            console.log(`[Edit Account] Respuesta status:`, response.status);
+            
+            if (response.ok) {
+              const data = await response.json();
+              console.log(`[Edit Account] Datos recibidos:`, data);
+              this.account = {
+                name: data.account.name || '',
+                provider: data.account.provider || 'afip_sdk',
+                api_token: '', // No mostramos el token por seguridad
+                cuit: data.account.cuit || '',
+                afip_username: '', // No mostramos credenciales por seguridad
+                afip_password: '',
+                cert: '', // No mostramos certificados por seguridad
+                key: ''
+              };
+            } else {
+              const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+              console.error(`[Edit Account] Error:`, errorData);
+              this.error = errorData.error || 'Error al cargar cuenta';
+            }
+          } catch (error) {
+            console.error(`[Edit Account] Excepción:`, error);
+            this.error = 'Error de conexión: ' + (error.message || 'Error desconocido');
+          } finally {
+            this.loading = false;
+          }
+        },
+        
+        async updateAccount() {
+          this.saving = true;
+          this.error = '';
+          this.success = '';
+          
+          try {
+            // Construir objeto con todos los campos (incluyendo vacíos para limpiar)
+            const updateData = {
+              name: this.account.name,
+              provider: this.account.provider,
+              api_token: this.account.api_token || undefined,
+              cuit: this.account.cuit || undefined,
+              afip_username: this.account.afip_username || undefined,
+              afip_password: this.account.afip_password || undefined,
+              cert: this.account.cert || undefined,
+              key: this.account.key || undefined
+            };
+            
+            console.log('Enviando datos de actualización:', { ...updateData, api_token: updateData.api_token ? '***' : undefined, afip_password: updateData.afip_password ? '***' : undefined });
+            
+            const response = await fetch(`/api/arca/accounts/${this.accountId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify(updateData)
+            });
+            
+            const data = await response.json();
+            
+            console.log('Respuesta del servidor:', data);
+            
+            if (response.ok) {
+              this.success = 'Cuenta actualizada correctamente';
+              setTimeout(() => {
+                window.location.href = '/accounts.html';
+              }, 1500);
+            } else {
+              this.error = data.error || 'Error al actualizar cuenta';
+              console.error('Error al actualizar:', data);
+            }
+          } catch (error) {
+            console.error('Error de conexión:', error);
+            this.error = 'Error de conexión: ' + (error.message || 'Error desconocido');
+          } finally {
+            this.saving = false;
+          }
+        },
+        
+        async obtainCertificate() {
+          if (!confirm('¿Deseas obtener el certificado de producción automáticamente? Esto puede tardar unos minutos.')) {
+            return;
+          }
+          
+          this.obtainingCert = true;
+          this.error = '';
+          this.success = '';
+          
+          try {
+            const response = await fetch(`/api/certificates/obtain?account_id=${this.accountId}`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              this.success = 'Certificado obtenido y guardado correctamente. Recarga la página para ver los cambios.';
+              setTimeout(() => {
+                this.loadAccount();
+              }, 2000);
+            } else {
+              this.error = data.error || 'Error al obtener certificado';
+            }
+          } catch (error) {
+            this.error = 'Error de conexión';
+          } finally {
+            this.obtainingCert = false;
+          }
+        },
+        
+        logout() {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login.html';
+        }
+      };
+    }
+  </script>
+</body>
+</html>
+
+
+

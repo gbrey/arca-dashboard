@@ -1,0 +1,30 @@
+{
+  "name": "arca-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard ARCA para gestión de facturas electrónicas",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler pages dev public --compatibility-date=2024-01-01 --local",
+    "dev:verbose": "wrangler pages dev public --compatibility-date=2024-01-01 --local --log-level=debug",
+    "deploy": "wrangler pages deploy public",
+    "migrate": "wrangler d1 migrations apply arca-db",
+    "logs": "wrangler pages deployment tail",
+    "logs:live": "wrangler pages deployment tail --format=pretty"
+  },
+  "keywords": [
+    "arca",
+    "afip",
+    "facturación",
+    "cloudflare"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241106.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.54.0"
+  },
+  "dependencies": {
+    "@tsndr/cloudflare-worker-jwt": "^2.2.1"
+  }
+}

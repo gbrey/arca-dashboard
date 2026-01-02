@@ -1,0 +1,10 @@
+# Copiar este archivo a .dev.vars para desarrollo local
+# Estos valores se usan solo en desarrollo, en producción usa: wrangler secret put
+
+ENCRYPTION_KEY=tu-clave-de-encriptacion-aqui-minimo-32-caracteres
+JWT_SECRET=tu-secret-jwt-aqui-minimo-32-caracteres
+AFIP_SDK_API_KEY=opcional-api-key-afip-sdk
+TUSFACTURAS_API_KEY=opcional-api-key-tusfacturas
+
+
+

@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+.wrangler/
+dist/
+.output/
+.vercel/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+.dev.vars
+wrangler.toml
+*.pem
+*.key
+*.crt
+*.cert
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
