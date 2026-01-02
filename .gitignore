@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json - Necesario para Cloudflare Pages
 
 # Build outputs
 .wrangler/
