@@ -141,6 +141,80 @@
         </p>
       </div>
 
+      <!-- Custom Scenario -->
+      <div class="bg-white rounded-xl shadow-lg overflow-hidden border-2 border-pink-400">
+        <div class="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-4">
+          <h3 class="font-semibold flex items-center text-lg">
+            <span class="mr-2">✏️</span>
+            Escenario Personalizado
+          </h3>
+          <p class="text-sm text-pink-100">Ingresá los montos que pensás facturar cada mes</p>
+        </div>
+        <div class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <template x-for="(month, idx) in customMonths" :key="idx">
+              <div class="relative">
+                <label class="block text-sm font-medium text-gray-700 mb-1" x-text="formatMonth(month.key)"></label>
+                <div class="relative">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                  <input type="number" 
+                         x-model.number="month.amount"
+                         @input="calculateCustomScenario()"
+                         class="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-pink-500 focus:ring-2 focus:ring-pink-200 text-lg font-semibold"
+                         placeholder="0"
+                         min="0">
+                </div>
+                <p class="text-xs text-gray-400 mt-1">
+                  Sale: <span class="text-red-500" x-text="'-' + formatCurrencyShort(month.exiting)"></span>
+                </p>
+              </div>
+            </template>
+          </div>
+          
+          <!-- Custom Scenario Results -->
+          <div x-show="customScenario.projections.length > 0" class="border-t pt-4">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-gray-500 text-left">
+                  <th class="pb-2">Mes</th>
+                  <th class="pb-2">Facturás</th>
+                  <th class="pb-2">Sale</th>
+                  <th class="pb-2">Nuevo Total</th>
+                  <th class="pb-2">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="proj in customScenario.projections" :key="proj.month">
+                  <tr class="border-t">
+                    <td class="py-2 font-medium" x-text="formatMonth(proj.month)"></td>
+                    <td class="py-2 text-pink-600 font-semibold" x-text="'+' + formatCurrencyShort(proj.new_amount)"></td>
+                    <td class="py-2 text-red-500" x-text="'-' + formatCurrencyShort(proj.exiting_amount)"></td>
+                    <td class="py-2 font-bold" x-text="formatCurrencyShort(proj.total)"></td>
+                    <td class="py-2">
+                      <span class="px-2 py-1 rounded text-xs font-medium"
+                            :class="'status-' + proj.status"
+                            x-text="proj.category + (proj.exceeds_current ? ' ⚠️' : '')"></span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            
+            <!-- Summary -->
+            <div class="mt-4 p-4 rounded-lg" 
+                 :class="customScenario.exceedsCategory ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'">
+              <p class="font-medium" :class="customScenario.exceedsCategory ? 'text-red-700' : 'text-green-700'">
+                <span x-show="!customScenario.exceedsCategory">✅ Te mantenés en categoría <span x-text="simulation.current?.category"></span></span>
+                <span x-show="customScenario.exceedsCategory">⚠️ Pasarías a categoría <span x-text="customScenario.newCategory"></span> en <span x-text="formatMonth(customScenario.exceedsMonth)"></span></span>
+              </p>
+              <p class="text-sm mt-1" :class="customScenario.exceedsCategory ? 'text-red-600' : 'text-green-600'">
+                Total proyectado al final: <span class="font-bold" x-text="formatCurrency(customScenario.finalTotal)"></span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Scenarios Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Conservative Scenario -->
@@ -304,6 +378,7 @@
         <h2 class="text-lg font-semibold text-gray-800 mb-4">Proyección Visual</h2>
         <canvas id="projectionChart" height="120"></canvas>
         <div class="mt-4 flex flex-wrap gap-4 justify-center text-sm">
+          <span class="flex items-center"><span class="w-3 h-3 bg-pink-500 rounded mr-2"></span>Personalizado</span>
           <span class="flex items-center"><span class="w-3 h-3 bg-emerald-500 rounded mr-2"></span>Conservador</span>
           <span class="flex items-center"><span class="w-3 h-3 bg-blue-500 rounded mr-2"></span>Normal</span>
           <span class="flex items-center"><span class="w-3 h-3 bg-orange-500 rounded mr-2"></span>Agresivo</span>
