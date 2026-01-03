@@ -202,18 +202,18 @@ function simulatorApp() {
       const currentLimit = this.simulation.current?.limit || 0;
       const currentTotal = this.simulation.current?.total_billed || 0;
       
-      // Preparar labels (mes actual + 3 proyectados)
+      // Preparar labels (mes actual + próximos 2 meses)
       const now = new Date();
-      const labels = ['Actual'];
-      for (let i = 1; i <= 3; i++) {
+      const labels = [];
+      for (let i = 0; i <= 2; i++) {
         const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
         labels.push(this.formatMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`));
       }
       
-      // Custom scenario data
+      // Custom scenario data (ahora son 3 meses: actual + 2 siguientes)
       const customData = this.customScenario.projections.length > 0
-        ? [currentTotal, ...this.customScenario.projections.map(p => p.total)]
-        : [currentTotal, currentTotal, currentTotal, currentTotal];
+        ? this.customScenario.projections.map(p => p.total)
+        : [currentTotal, currentTotal, currentTotal];
       
       // Datasets
       const datasets = [
@@ -230,7 +230,7 @@ function simulatorApp() {
         },
         {
           label: 'Conservador',
-          data: [currentTotal, ...(scenarios?.conservative?.projections?.map(p => p.total) || [])],
+          data: scenarios?.conservative?.projections?.map(p => p.total) || [],
           borderColor: 'rgb(16, 185, 129)',
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
           tension: 0.3,
@@ -239,7 +239,7 @@ function simulatorApp() {
         },
         {
           label: 'Normal',
-          data: [currentTotal, ...(scenarios?.normal?.projections?.map(p => p.total) || [])],
+          data: scenarios?.normal?.projections?.map(p => p.total) || [],
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           tension: 0.3,
@@ -248,7 +248,7 @@ function simulatorApp() {
         },
         {
           label: 'Agresivo',
-          data: [currentTotal, ...(scenarios?.aggressive?.projections?.map(p => p.total) || [])],
+          data: scenarios?.aggressive?.projections?.map(p => p.total) || [],
           borderColor: 'rgb(249, 115, 22)',
           backgroundColor: 'rgba(249, 115, 22, 0.1)',
           tension: 0.3,
@@ -257,7 +257,7 @@ function simulatorApp() {
         },
         {
           label: 'Máximo',
-          data: [currentTotal, ...(scenarios?.maximum?.projections?.map(p => p.total_if_max) || [])],
+          data: scenarios?.maximum?.projections?.map(p => p.total_if_max) || [],
           borderColor: 'rgb(147, 51, 234)',
           backgroundColor: 'rgba(147, 51, 234, 0.1)',
           tension: 0.3,
@@ -267,7 +267,7 @@ function simulatorApp() {
         },
         {
           label: 'Límite categoría actual',
-          data: Array(4).fill(currentLimit),
+          data: Array(3).fill(currentLimit),
           borderColor: 'rgba(239, 68, 68, 0.7)',
           backgroundColor: 'transparent',
           borderDash: [10, 5],

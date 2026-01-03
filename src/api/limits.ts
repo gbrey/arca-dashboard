@@ -464,7 +464,8 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
       const projections = [];
       let runningTotal = totalBilled;
       
-      for (let i = 1; i <= 3; i++) {
+      // Mes actual (i=0) + próximos 2 meses (i=1, i=2)
+      for (let i = 0; i <= 2; i++) {
         const projectionDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + i, 1);
         const projectionKey = `${projectionDate.getFullYear()}-${String(projectionDate.getMonth() + 1).padStart(2, '0')}`;
         
@@ -508,7 +509,8 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
       const projections = [];
       let runningTotal = totalBilled;
       
-      for (let i = 1; i <= 3; i++) {
+      // Mes actual (i=0) + próximos 2 meses (i=1, i=2)
+      for (let i = 0; i <= 2; i++) {
         const projectionDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + i, 1);
         const projectionKey = `${projectionDate.getFullYear()}-${String(projectionDate.getMonth() + 1).padStart(2, '0')}`;
         
