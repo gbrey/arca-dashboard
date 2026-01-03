@@ -191,29 +191,53 @@ function simulatorApp() {
     
     renderChart() {
       const ctx = document.getElementById('projectionChart');
-      if (!ctx || !this.simulation) return;
+      if (!ctx || !this.simulation) {
+        console.log('Chart not rendered: ctx or simulation missing', { ctx: !!ctx, simulation: !!this.simulation });
+        return;
+      }
       
       // Destruir gráfico anterior si existe
       if (this.projectionChart) {
         this.projectionChart.destroy();
+        this.projectionChart = null;
       }
       
       const scenarios = this.simulation.scenarios;
       const currentLimit = this.simulation.current?.limit || 0;
       const currentTotal = this.simulation.current?.total_billed || 0;
       
-      // Preparar labels (mes actual + próximos 2 meses)
-      const now = new Date();
-      const labels = [];
-      for (let i = 0; i <= 2; i++) {
-        const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-        labels.push(this.formatMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`));
+      // Usar los meses del primer escenario disponible para los labels
+      const projectionMonths = scenarios?.conservative?.projections || 
+                               scenarios?.normal?.projections || 
+                               scenarios?.maximum?.projections || [];
+      
+      // Si no hay proyecciones, generar labels manualmente
+      let labels;
+      if (projectionMonths.length > 0) {
+        labels = projectionMonths.map(p => this.formatMonth(p.month));
+      } else {
+        const now = new Date();
+        labels = [];
+        for (let i = 0; i <= 2; i++) {
+          const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+          labels.push(this.formatMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`));
+        }
       }
       
-      // Custom scenario data (ahora son 3 meses: actual + 2 siguientes)
+      const numPoints = labels.length;
+      
+      // Custom scenario data
       const customData = this.customScenario.projections.length > 0
         ? this.customScenario.projections.map(p => p.total)
-        : [currentTotal, currentTotal, currentTotal];
+        : Array(numPoints).fill(currentTotal);
+      
+      // Helper to get data or fallback
+      const getProjectionData = (projections, key = 'total') => {
+        if (!projections || projections.length === 0) {
+          return Array(numPoints).fill(currentTotal);
+        }
+        return projections.map(p => p[key]);
+      };
       
       // Datasets
       const datasets = [
@@ -230,7 +254,7 @@ function simulatorApp() {
         },
         {
           label: 'Conservador',
-          data: scenarios?.conservative?.projections?.map(p => p.total) || [],
+          data: getProjectionData(scenarios?.conservative?.projections),
           borderColor: 'rgb(16, 185, 129)',
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
           tension: 0.3,
@@ -239,7 +263,7 @@ function simulatorApp() {
         },
         {
           label: 'Normal',
-          data: scenarios?.normal?.projections?.map(p => p.total) || [],
+          data: getProjectionData(scenarios?.normal?.projections),
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           tension: 0.3,
@@ -248,7 +272,7 @@ function simulatorApp() {
         },
         {
           label: 'Agresivo',
-          data: scenarios?.aggressive?.projections?.map(p => p.total) || [],
+          data: getProjectionData(scenarios?.aggressive?.projections),
           borderColor: 'rgb(249, 115, 22)',
           backgroundColor: 'rgba(249, 115, 22, 0.1)',
           tension: 0.3,
@@ -257,7 +281,7 @@ function simulatorApp() {
         },
         {
           label: 'Máximo',
-          data: scenarios?.maximum?.projections?.map(p => p.total_if_max) || [],
+          data: getProjectionData(scenarios?.maximum?.projections, 'total_if_max'),
           borderColor: 'rgb(147, 51, 234)',
           backgroundColor: 'rgba(147, 51, 234, 0.1)',
           tension: 0.3,
@@ -267,7 +291,7 @@ function simulatorApp() {
         },
         {
           label: 'Límite categoría actual',
-          data: Array(3).fill(currentLimit),
+          data: Array(numPoints).fill(currentLimit),
           borderColor: 'rgba(239, 68, 68, 0.7)',
           backgroundColor: 'transparent',
           borderDash: [10, 5],
@@ -277,42 +301,50 @@ function simulatorApp() {
         }
       ];
       
-      this.projectionChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: datasets
-        },
-        options: {
-          responsive: true,
-          interaction: {
-            intersect: false,
-            mode: 'index'
+      console.log('Chart data:', { labels, datasets: datasets.map(d => ({ label: d.label, data: d.data })) });
+      
+      try {
+        this.projectionChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: datasets
           },
-          plugins: {
-            legend: {
-              display: false
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+              intersect: false,
+              mode: 'index'
             },
-            tooltip: {
-              callbacks: {
-                label: (context) => {
-                  return `${context.dataset.label}: ${this.formatCurrency(context.raw)}`;
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    return `${context.dataset.label}: ${this.formatCurrency(context.raw)}`;
+                  }
                 }
               }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: false,
-              ticks: {
-                callback: (value) => {
-                  return this.formatCurrencyShort(value);
+            },
+            scales: {
+              y: {
+                beginAtZero: false,
+                ticks: {
+                  callback: (value) => {
+                    return this.formatCurrencyShort(value);
+                  }
                 }
               }
             }
           }
-        }
-      });
+        });
+        console.log('Chart created successfully');
+      } catch (error) {
+        console.error('Error creating chart:', error);
+      }
     },
     
     formatCurrency(amount) {
