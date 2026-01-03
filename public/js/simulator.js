@@ -314,7 +314,20 @@ function simulatorApp() {
         }
       ];
       
-      console.log('Chart data:', { labels, datasets: datasets.map(d => ({ label: d.label, data: d.data })) });
+      console.log('Chart data:', { 
+        labels, 
+        datasets: datasets.map(d => ({ 
+          label: d.label, 
+          data: d.data,
+          dataValues: JSON.stringify(d.data)
+        })) 
+      });
+      console.log('Scenarios raw:', {
+        conservative: scenarios?.conservative?.projections?.map(p => p.total),
+        normal: scenarios?.normal?.projections?.map(p => p.total),
+        aggressive: scenarios?.aggressive?.projections?.map(p => p.total),
+        maximum: scenarios?.maximum?.projections?.map(p => p.total_if_max)
+      });
       
       try {
         this.projectionChart = new Chart(ctx, {
