@@ -357,6 +357,244 @@ export async function syncMonotributoInfo(env: Env, accountId: string, userId: s
   }
 }
 
+// Determinar la categoría correspondiente a un monto total
+function getCategoryForAmount(amount: number): string {
+  const categories = Object.entries(MONOTRIBUTO_LIMITS).sort((a, b) => a[1] - b[1]);
+  for (const [category, limit] of categories) {
+    if (amount <= limit) {
+      return category;
+    }
+  }
+  return 'EXCEDIDO'; // Se pasó de todas las categorías
+}
+
+// Obtener la siguiente categoría
+function getNextCategory(currentCategory: string): string | null {
+  const categories = Object.keys(MONOTRIBUTO_LIMITS);
+  const currentIndex = categories.indexOf(currentCategory);
+  if (currentIndex === -1 || currentIndex === categories.length - 1) {
+    return null;
+  }
+  return categories[currentIndex + 1];
+}
+
+export async function simulateScenarios(env: Env, accountId: string, userId: string): Promise<Response> {
+  try {
+    // Verificar que la cuenta pertenece al usuario
+    const account = await env.DB.prepare(
+      'SELECT * FROM arca_accounts WHERE id = ? AND user_id = ?'
+    ).bind(accountId, userId).first();
+    
+    if (!account) {
+      return new Response(JSON.stringify({ error: 'Cuenta ARCA no encontrada' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Obtener límite configurado
+    const limit = await env.DB.prepare(
+      'SELECT * FROM billing_limits WHERE arca_account_id = ?'
+    ).bind(accountId).first<BillingLimit>();
+    
+    const currentCategory = limit?.category || 'H';
+    const currentLimit = MONOTRIBUTO_LIMITS[currentCategory] || MONOTRIBUTO_LIMITS['H'];
+    
+    // Obtener facturas de los últimos 13 meses (necesitamos 13 para saber qué "sale" cada mes)
+    const now = new Date();
+    const thirteenMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 13, 1);
+    const thirteenMonthsAgoTimestamp = Math.floor(thirteenMonthsAgo.getTime() / 1000);
+    
+    const invoices = await env.DB.prepare(`
+      SELECT amount, date, cached_data FROM invoices 
+      WHERE arca_account_id = ? AND date >= ?
+      ORDER BY date ASC
+    `).bind(accountId, thirteenMonthsAgoTimestamp).all<{ amount: number; date: number; cached_data: string | null }>();
+    
+    const { calcularMontoAjustado } = await import('../utils/comprobantes');
+    
+    // Agrupar facturas por mes con montos ajustados
+    const monthlyData: Record<string, number> = {};
+    
+    // Inicializar últimos 13 meses con 0
+    for (let i = 13; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthlyData[key] = 0;
+    }
+    
+    // Sumar facturas por mes
+    for (const invoice of invoices.results) {
+      const date = new Date(invoice.date * 1000);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      let tipoComprobante: string | null = null;
+      if (invoice.cached_data) {
+        try {
+          const cached = JSON.parse(invoice.cached_data);
+          tipoComprobante = cached.tipo || null;
+        } catch (e) {}
+      }
+      
+      if (monthlyData[key] !== undefined) {
+        monthlyData[key] += calcularMontoAjustado(invoice.amount, tipoComprobante);
+      }
+    }
+    
+    // Convertir a array ordenado por fecha
+    const monthsArray = Object.entries(monthlyData)
+      .map(([month, amount]) => ({ month, amount: Math.max(0, amount) }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+    
+    // Calcular total de últimos 12 meses (excluyendo el más antiguo)
+    const last12Months = monthsArray.slice(-12);
+    const totalBilled = last12Months.reduce((sum, m) => sum + m.amount, 0);
+    
+    // Calcular promedio mensual (evitar división por 0)
+    const monthsWithData = last12Months.filter(m => m.amount > 0).length;
+    const monthlyAverage = monthsWithData > 0 ? totalBilled / monthsWithData : 0;
+    
+    // Obtener los 3 meses que "saldrán" de la ventana cuando proyectemos
+    const exitingMonths = monthsArray.slice(-15, -12); // Los 3 meses más viejos dentro de la ventana actual
+    
+    // Generar proyecciones
+    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    function generateProjections(monthlyAmount: number, scenarioName: string) {
+      const projections = [];
+      let runningTotal = totalBilled;
+      
+      for (let i = 1; i <= 3; i++) {
+        const projectionDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + i, 1);
+        const projectionKey = `${projectionDate.getFullYear()}-${String(projectionDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        // El mes que "sale" de la ventana es el de hace 12 meses desde la proyección
+        const exitingDate = new Date(projectionDate.getFullYear(), projectionDate.getMonth() - 12, 1);
+        const exitingKey = `${exitingDate.getFullYear()}-${String(exitingDate.getMonth() + 1).padStart(2, '0')}`;
+        const exitingAmount = monthlyData[exitingKey] || 0;
+        
+        // Nuevo total = total anterior - lo que sale + lo nuevo
+        runningTotal = runningTotal - exitingAmount + monthlyAmount;
+        
+        const projectedCategory = getCategoryForAmount(runningTotal);
+        const exceedsCurrentCategory = runningTotal > currentLimit;
+        const exceedsAllCategories = runningTotal > MONOTRIBUTO_LIMITS['K'];
+        
+        let status: 'ok' | 'warning' | 'exceeded' = 'ok';
+        if (exceedsAllCategories) {
+          status = 'exceeded';
+        } else if (exceedsCurrentCategory) {
+          status = 'warning';
+        }
+        
+        projections.push({
+          month: projectionKey,
+          exiting_month: exitingKey,
+          exiting_amount: Math.round(exitingAmount),
+          new_amount: Math.round(monthlyAmount),
+          total: Math.round(runningTotal),
+          category: projectedCategory,
+          category_limit: MONOTRIBUTO_LIMITS[projectedCategory] || 0,
+          status,
+          exceeds_current: exceedsCurrentCategory
+        });
+      }
+      
+      return projections;
+    }
+    
+    // Calcular máximo facturable por mes sin cambiar de categoría
+    function calculateMaximum() {
+      const projections = [];
+      let runningTotal = totalBilled;
+      
+      for (let i = 1; i <= 3; i++) {
+        const projectionDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + i, 1);
+        const projectionKey = `${projectionDate.getFullYear()}-${String(projectionDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        const exitingDate = new Date(projectionDate.getFullYear(), projectionDate.getMonth() - 12, 1);
+        const exitingKey = `${exitingDate.getFullYear()}-${String(exitingDate.getMonth() + 1).padStart(2, '0')}`;
+        const exitingAmount = monthlyData[exitingKey] || 0;
+        
+        // Máximo que puedo facturar = límite - (total actual - lo que sale)
+        const baseAfterExiting = runningTotal - exitingAmount;
+        const maxFacturable = Math.max(0, currentLimit - baseAfterExiting);
+        
+        // Actualizar running total asumiendo que facturo el máximo
+        runningTotal = baseAfterExiting + maxFacturable;
+        
+        projections.push({
+          month: projectionKey,
+          exiting_month: exitingKey,
+          exiting_amount: Math.round(exitingAmount),
+          max_facturable: Math.round(maxFacturable),
+          total_if_max: Math.round(runningTotal),
+          category: currentCategory,
+          status: 'ok' as const
+        });
+      }
+      
+      return projections;
+    }
+    
+    // Generar escenarios
+    const conservativeAmount = monthlyAverage * 0.5;
+    const normalAmount = monthlyAverage;
+    const aggressiveAmount = monthlyAverage * 1.5;
+    
+    const response = {
+      current: {
+        category: currentCategory,
+        limit: currentLimit,
+        total_billed: Math.round(totalBilled),
+        remaining: Math.round(currentLimit - totalBilled),
+        percentage: Math.round((totalBilled / currentLimit) * 10000) / 100,
+        monthly_average: Math.round(monthlyAverage),
+        next_category: getNextCategory(currentCategory),
+        next_category_limit: getNextCategory(currentCategory) ? MONOTRIBUTO_LIMITS[getNextCategory(currentCategory)!] : null
+      },
+      months_data: last12Months,
+      all_categories: MONOTRIBUTO_LIMITS,
+      scenarios: {
+        conservative: {
+          name: 'Conservador',
+          description: '50% del promedio mensual',
+          monthly_amount: Math.round(conservativeAmount),
+          projections: generateProjections(conservativeAmount, 'conservative')
+        },
+        normal: {
+          name: 'Normal',
+          description: 'Mantener promedio actual',
+          monthly_amount: Math.round(normalAmount),
+          projections: generateProjections(normalAmount, 'normal')
+        },
+        aggressive: {
+          name: 'Agresivo',
+          description: '150% del promedio mensual',
+          monthly_amount: Math.round(aggressiveAmount),
+          projections: generateProjections(aggressiveAmount, 'aggressive')
+        },
+        maximum: {
+          name: 'Máximo sin recategorización',
+          description: `Máximo para mantenerse en categoría ${currentCategory}`,
+          projections: calculateMaximum()
+        }
+      }
+    };
+    
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    console.error('[Simulador] Error:', error);
+    return new Response(JSON.stringify({ error: error.message || 'Error al simular escenarios' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 export async function handleLimits(request: Request, env: Env): Promise<Response> {
   const userId = await getAuthUser(request, env);
   if (!userId) {
@@ -376,8 +614,13 @@ export async function handleLimits(request: Request, env: Env): Promise<Response
     });
   }
   
-  // POST /api/limits/sync - Sincronizar información de monotributo
+  // GET/POST /api/limits/simulate - Simular escenarios
   const pathParts = url.pathname.split('/').filter(p => p);
+  if (pathParts.length === 3 && pathParts[2] === 'simulate') {
+    return simulateScenarios(env, accountId, userId);
+  }
+  
+  // POST /api/limits/sync - Sincronizar información de monotributo
   if (request.method === 'POST' && pathParts.length === 3 && pathParts[2] === 'sync') {
     return syncMonotributoInfo(env, accountId, userId);
   }
