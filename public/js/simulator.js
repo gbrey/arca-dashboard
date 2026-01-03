@@ -329,6 +329,14 @@ function simulatorApp() {
         maximum: scenarios?.maximum?.projections?.map(p => p.total_if_max)
       });
       
+      // Calcular min y max de todos los datasets para escala Y correcta
+      const allValues = datasets.flatMap(d => d.data).filter(v => v != null && !isNaN(v));
+      const minValue = Math.min(...allValues);
+      const maxValue = Math.max(...allValues);
+      const padding = (maxValue - minValue) * 0.1; // 10% padding
+      
+      console.log('Y-axis range:', { minValue, maxValue, padding });
+      
       try {
         this.projectionChart = new Chart(ctx, {
           type: 'line',
@@ -358,6 +366,8 @@ function simulatorApp() {
             scales: {
               y: {
                 beginAtZero: false,
+                min: minValue - padding,
+                max: maxValue + padding,
                 ticks: {
                   callback: (value) => {
                     return this.formatCurrencyShort(value);
