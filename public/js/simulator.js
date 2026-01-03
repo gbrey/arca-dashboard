@@ -2,7 +2,13 @@ function simulatorApp() {
   return {
     selectedAccountId: '',
     accounts: [],
-    simulation: null,
+    // Inicializar con estructura vacía para evitar errores de null
+    simulation: {
+      current: null,
+      scenarios: null,
+      all_categories: {},
+      months_data: []
+    },
     loading: false,
     projectionChart: null,
     
@@ -56,7 +62,12 @@ function simulatorApp() {
     
     async loadSimulation() {
       if (!this.selectedAccountId) {
-        this.simulation = null;
+        this.simulation = {
+          current: null,
+          scenarios: null,
+          all_categories: {},
+          months_data: []
+        };
         return;
       }
       
@@ -191,8 +202,8 @@ function simulatorApp() {
     
     renderChart() {
       const ctx = document.getElementById('projectionChart');
-      if (!ctx || !this.simulation) {
-        console.log('Chart not rendered: ctx or simulation missing', { ctx: !!ctx, simulation: !!this.simulation });
+      if (!ctx || !this.simulation || !this.simulation.current) {
+        console.log('Chart not rendered: missing data', { ctx: !!ctx, simulation: !!this.simulation, current: !!this.simulation?.current });
         return;
       }
       
