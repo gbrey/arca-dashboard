@@ -119,11 +119,11 @@ function simulatorApp() {
         exiting: proj.exiting_amount
       }));
       
-      // Calculate initial custom scenario
-      this.calculateCustomScenario();
+      // Calculate initial custom scenario (sin renderizar gráfico, se hace después)
+      this.calculateCustomScenario(false);
     },
     
-    calculateCustomScenario() {
+    calculateCustomScenario(shouldRenderChart = true) {
       if (!this.simulation || this.customMonths.length === 0) return;
       
       const currentTotal = this.simulation.current?.total_billed || 0;
@@ -182,10 +182,12 @@ function simulatorApp() {
         finalTotal: Math.round(runningTotal)
       };
       
-      // Update chart with new custom data
-      this.$nextTick(() => {
-        this.renderChart();
-      });
+      // Update chart with new custom data (solo si no es la carga inicial)
+      if (shouldRenderChart) {
+        this.$nextTick(() => {
+          this.renderChart();
+        });
+      }
     },
     
     getCategoryForAmount(amount) {
