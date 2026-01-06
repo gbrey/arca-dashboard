@@ -263,17 +263,21 @@ function simulatorApp() {
                                scenarios?.normal?.projections || 
                                scenarios?.maximum?.projections || [];
       
-      // Si no hay proyecciones, generar labels manualmente
+      // Usar los meses del backend (dinámicos según la próxima recategorización)
       let labels;
       if (projectionMonths.length > 0) {
         labels = projectionMonths.map(p => this.formatMonth(p.month));
+        console.log(`[Chart] Usando ${projectionMonths.length} meses del backend:`, labels);
       } else {
+        // Fallback: usar el número de meses hasta recategorización del backend
+        const monthsToSimulate = this.simulation.current?.months_to_recategorization || 3;
         const now = new Date();
         labels = [];
-        for (let i = 0; i <= 2; i++) {
+        for (let i = 0; i < monthsToSimulate; i++) {
           const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
           labels.push(this.formatMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`));
         }
+        console.log(`[Chart] Fallback: generando ${monthsToSimulate} meses manualmente`);
       }
       
       const numPoints = labels.length;

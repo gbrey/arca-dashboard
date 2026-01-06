@@ -473,6 +473,7 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
     let checkMonth = new Date(currentMonthStart);
     
     // Contar meses completos desde el mes actual hasta el mes de recategorización (excluyendo el mes de recategorización)
+    // Si estamos en Enero (mes 0) y la próxima es Julio (mes 6), contamos: Ene(0), Feb(1), Mar(2), Abr(3), May(4), Jun(5) = 6 meses
     while (checkMonth < nextRecatMonthStart) {
       monthsToSimulate++;
       checkMonth = new Date(checkMonth.getFullYear(), checkMonth.getMonth() + 1, 1);
@@ -480,6 +481,8 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
     
     // Asegurar mínimo 1 mes y máximo 6 meses
     monthsToSimulate = Math.max(1, Math.min(monthsToSimulate, 6));
+    
+    console.log(`[Simulador] Cálculo de meses: actual=${now.getMonth() + 1}, próxima recat=${nextRecatDate.getMonth() + 1}, meses a simular=${monthsToSimulate}`);
     
     // Obtener facturas de los últimos 13 meses (necesitamos 13 para saber qué "sale" cada mes)
     const thirteenMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 13, 1);
