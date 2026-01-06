@@ -626,6 +626,8 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
     const normalAmount = monthlyAverage;
     const aggressiveAmount = monthlyAverage * 1.5;
     
+    console.log(`[Simulador] Meses a simular: ${monthsToSimulate}, Próxima recategorización: ${nextRecategorization.name}`);
+    
     const response = {
       current: {
         category: currentCategory,
