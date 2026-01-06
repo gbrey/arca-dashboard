@@ -573,7 +573,8 @@ export async function syncInvoicesFromArca(
   env: Env,
   accountId: string,
   userId: string,
-  useAutomation: boolean // Mantener por compatibilidad pero siempre será true
+  useAutomation: boolean, // Mantener por compatibilidad pero siempre será true
+  year?: number // Año específico para sincronizar (opcional)
 ): Promise<Response> {
   try {
     const account = await getArcaAccount(env, accountId, userId);
@@ -606,26 +607,42 @@ export async function syncInvoicesFromArca(
         const afipUsername = await decrypt(account.afip_username_encrypted, env.ENCRYPTION_KEY);
         const afipPassword = await decrypt(account.afip_password_encrypted, env.ENCRYPTION_KEY);
         
-        // Calcular rango de fechas basado en facturas cacheadas
-        const lastInvoice = await env.DB.prepare(`
-          SELECT date FROM invoices 
-          WHERE arca_account_id = ?
-          ORDER BY date DESC
-          LIMIT 1
-        `).bind(accountId).first<{ date: number }>();
-        
-        const endDate = new Date();
         let startDate: Date;
+        let endDate: Date;
         
-        if (lastInvoice && lastInvoice.date) {
-          // Si hay facturas, usar desde la fecha más reciente (inclusive)
-          startDate = new Date(lastInvoice.date * 1000); // Convertir timestamp (segundos) a Date
-          console.log(`[Sync] 📅 Facturas cacheadas encontradas. Buscando desde ${startDate.toISOString().split('T')[0]} hasta hoy`);
+        if (year) {
+          // Si se especifica un año, sincronizar todo ese año
+          startDate = new Date(year, 0, 1); // 1 de enero
+          endDate = new Date(year, 11, 31); // 31 de diciembre
+          
+          // Si el año es el actual, usar hasta hoy
+          const today = new Date();
+          if (year === today.getFullYear() && endDate > today) {
+            endDate = today;
+          }
+          
+          console.log(`[Sync] 📅 Sincronizando año ${year}: ${startDate.toISOString().split('T')[0]} - ${endDate.toISOString().split('T')[0]}`);
         } else {
-          // Si no hay facturas, usar últimos 12 meses
-          startDate = new Date();
-          startDate.setMonth(startDate.getMonth() - 12);
-          console.log(`[Sync] 📅 No hay facturas cacheadas. Buscando últimos 12 meses (desde ${startDate.toISOString().split('T')[0]})`);
+          // Comportamiento por defecto: basado en facturas cacheadas
+          const lastInvoice = await env.DB.prepare(`
+            SELECT date FROM invoices 
+            WHERE arca_account_id = ?
+            ORDER BY date DESC
+            LIMIT 1
+          `).bind(accountId).first<{ date: number }>();
+          
+          endDate = new Date();
+          
+          if (lastInvoice && lastInvoice.date) {
+            // Si hay facturas, usar desde la fecha más reciente (inclusive)
+            startDate = new Date(lastInvoice.date * 1000); // Convertir timestamp (segundos) a Date
+            console.log(`[Sync] 📅 Facturas cacheadas encontradas. Buscando desde ${startDate.toISOString().split('T')[0]} hasta hoy`);
+          } else {
+            // Si no hay facturas, usar últimos 12 meses
+            startDate = new Date();
+            startDate.setMonth(startDate.getMonth() - 12);
+            console.log(`[Sync] 📅 No hay facturas cacheadas. Buscando últimos 12 meses (desde ${startDate.toISOString().split('T')[0]})`);
+          }
         }
         
         const dateFormat = (date: Date) => {

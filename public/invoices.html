@@ -136,15 +136,23 @@
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-semibold">Facturas</h2>
         <div class="flex items-center space-x-4">
-          <button 
-            @click="syncInvoices()" 
-            :disabled="syncing"
-            class="bg-green-600 text-white px-4 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
-            title="Sincronizar facturas nuevas desde ARCA"
-          >
-            <span x-show="!syncing">🔄 Sincronizar</span>
-            <span x-show="syncing">Sincronizando...</span>
-          </button>
+          <div class="flex items-center gap-2">
+            <select x-model="syncYear" class="border rounded px-2 py-1 text-sm">
+              <option value="">Nuevas</option>
+              <template x-for="y in availableYears" :key="y">
+                <option :value="y" x-text="y"></option>
+              </template>
+            </select>
+            <button 
+              @click="syncInvoices()" 
+              :disabled="syncing"
+              class="bg-green-600 text-white px-4 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+              title="Sincronizar facturas desde ARCA"
+            >
+              <span x-show="!syncing">🔄 Sincronizar</span>
+              <span x-show="syncing">Sincronizando...</span>
+            </button>
+          </div>
           <!-- Filtro de búsqueda -->
           <input 
             type="text" 

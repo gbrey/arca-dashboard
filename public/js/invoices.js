@@ -16,6 +16,13 @@ function invoicesApp() {
     syncing: false,
     error: '',
     success: '',
+    syncYear: '', // '' = nuevas, o año específico
+    
+    // Años disponibles para sincronizar (actual y 2 anteriores)
+    get availableYears() {
+      const currentYear = new Date().getFullYear();
+      return [currentYear, currentYear - 1, currentYear - 2];
+    },
     
     async init() {
       const token = localStorage.getItem('token');
@@ -232,21 +239,29 @@ function invoicesApp() {
       this.success = '';
       
       try {
+        const body = {
+          account_id: this.selectedAccountId
+        };
+        
+        // Si hay un año seleccionado, agregarlo
+        if (this.syncYear) {
+          body.year = parseInt(this.syncYear);
+        }
+        
         const response = await fetch('/api/invoices/sync', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           },
-          body: JSON.stringify({
-            account_id: this.selectedAccountId
-          })
+          body: JSON.stringify(body)
         });
         
         const data = await response.json();
         
         if (response.ok) {
-          this.success = data.message || `Se sincronizaron ${data.count || 0} facturas nuevas`;
+          const yearMsg = this.syncYear ? ` del año ${this.syncYear}` : '';
+          this.success = data.message || `Se sincronizaron ${data.count || 0} facturas${yearMsg}`;
           await this.loadInvoices();
         } else {
           this.error = data.error || 'Error al sincronizar facturas';

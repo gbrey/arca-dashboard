@@ -106,7 +106,7 @@ export async function handleInvoices(request: Request, env: Env): Promise<Respon
   
   // POST /api/invoices/sync - Sincronización manual de facturas
   if (request.method === 'POST' && pathParts.length === 3 && pathParts[2] === 'sync') {
-    const body = await request.json() as { account_id: string };
+    const body = await request.json() as { account_id: string; year?: number };
     
     if (!body.account_id) {
       return new Response(JSON.stringify({ error: 'account_id requerido' }), {
@@ -115,7 +115,7 @@ export async function handleInvoices(request: Request, env: Env): Promise<Respon
       });
     }
     
-    return syncInvoices(env, body.account_id, userId);
+    return syncInvoices(env, body.account_id, userId, body.year);
   }
   
   return new Response(JSON.stringify({ error: 'Ruta no encontrada' }), {
@@ -128,13 +128,14 @@ export async function handleInvoices(request: Request, env: Env): Promise<Respon
 async function syncInvoices(
   env: Env,
   accountId: string,
-  userId: string
+  userId: string,
+  year?: number
 ): Promise<Response> {
   try {
     // Importar función de ARCA
     const { syncInvoicesFromArca } = await import('./arca');
-    // Siempre usar automatización
-    return await syncInvoicesFromArca(env, accountId, userId, true);
+    // Siempre usar automatización, con año opcional
+    return await syncInvoicesFromArca(env, accountId, userId, true, year);
   } catch (error: any) {
     return new Response(JSON.stringify({ 
       error: error.message || 'Error al sincronizar facturas' 
