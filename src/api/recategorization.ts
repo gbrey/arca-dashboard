@@ -542,6 +542,121 @@ export async function getLimitsForDate(env: Env, date: Date): Promise<Record<str
 }
 
 // =====================================================
+// SUGERENCIA DE CATEGORÍA PARA UN PERÍODO
+// =====================================================
+
+export async function calculatePeriodSuggestion(env: Env, accountId: string, userId: string, period: string): Promise<Response> {
+  try {
+    // Verificar que la cuenta pertenece al usuario
+    const account = await env.DB.prepare(
+      'SELECT id FROM arca_accounts WHERE id = ? AND user_id = ?'
+    ).bind(accountId, userId).first();
+    
+    if (!account) {
+      return new Response(JSON.stringify({ error: 'Cuenta no encontrada' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Validar formato del período
+    if (!/^\d{4}-(01|07)$/.test(period)) {
+      return new Response(JSON.stringify({ error: 'Formato de período inválido' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Calcular fechas del período
+    const [yearStr, monthStr] = period.split('-');
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr);
+    
+    let periodStart: Date;
+    let periodEnd: Date;
+    
+    if (month === 1) {
+      // Enero: evalúa Ene-Dic del año anterior
+      periodStart = new Date(year - 1, 0, 1); // 1 Ene año anterior
+      periodEnd = new Date(year - 1, 11, 31, 23, 59, 59); // 31 Dic año anterior
+    } else {
+      // Julio: evalúa Jul año anterior a Jun mismo año
+      periodStart = new Date(year - 1, 6, 1); // 1 Jul año anterior
+      periodEnd = new Date(year, 5, 30, 23, 59, 59); // 30 Jun mismo año
+    }
+    
+    const startTimestamp = Math.floor(periodStart.getTime() / 1000);
+    const endTimestamp = Math.floor(periodEnd.getTime() / 1000);
+    
+    // Obtener facturas del período
+    const { calcularMontoAjustado } = await import('../utils/comprobantes');
+    
+    const invoices = await env.DB.prepare(`
+      SELECT amount, date, cached_data FROM invoices 
+      WHERE arca_account_id = ? AND date >= ? AND date <= ?
+      ORDER BY date ASC
+    `).bind(accountId, startTimestamp, endTimestamp).all<{ amount: number; date: number; cached_data: string | null }>();
+    
+    // Calcular total del período
+    let totalBilled = 0;
+    const monthlyBreakdown: Record<string, number> = {};
+    
+    for (const invoice of invoices.results) {
+      let tipoComprobante: string | null = null;
+      if (invoice.cached_data) {
+        try {
+          const cached = JSON.parse(invoice.cached_data);
+          tipoComprobante = cached.tipo || null;
+        } catch (e) {}
+      }
+      
+      const adjustedAmount = calcularMontoAjustado(invoice.amount, tipoComprobante);
+      totalBilled += adjustedAmount;
+      
+      // Agrupar por mes
+      const date = new Date(invoice.date * 1000);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthlyBreakdown[monthKey] = (monthlyBreakdown[monthKey] || 0) + adjustedAmount;
+    }
+    
+    totalBilled = Math.max(0, Math.round(totalBilled));
+    
+    // Obtener los límites vigentes para ese período
+    const limits = await getLimitsForDate(env, periodEnd);
+    
+    // Determinar categoría sugerida
+    const suggestedCategory = getCategoryForAmount(totalBilled);
+    
+    // Formatear período para mostrar
+    const periodLabel = month === 1 
+      ? `Ene ${year - 1} → Dic ${year - 1}`
+      : `Jul ${year - 1} → Jun ${year}`;
+    
+    return new Response(JSON.stringify({
+      period,
+      periodLabel,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      totalBilled,
+      suggestedCategory,
+      categoryLimit: limits[suggestedCategory] || MONOTRIBUTO_LIMITS[suggestedCategory],
+      invoiceCount: invoices.results.length,
+      monthlyBreakdown,
+      hasData: invoices.results.length > 0
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    console.error('[calculatePeriodSuggestion] Error:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// =====================================================
 // ROUTER PRINCIPAL
 // =====================================================
 
@@ -593,6 +708,28 @@ export async function handleRecategorization(request: Request, env: Env): Promis
     if (request.method === 'POST') {
       const data = await request.json();
       return saveCategoryHistory(env, accountId, userId, data);
+    }
+  }
+  
+  // Sugerencia de categoría para un período
+  if (path === '/api/recategorization/suggest') {
+    if (!accountId) {
+      return new Response(JSON.stringify({ error: 'account_id requerido' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const period = url.searchParams.get('period');
+    if (!period) {
+      return new Response(JSON.stringify({ error: 'period requerido' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    if (request.method === 'GET') {
+      return calculatePeriodSuggestion(env, accountId, userId, period);
     }
   }
   

@@ -349,7 +349,7 @@
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label class="block text-sm text-gray-600 mb-1">Período</label>
-              <select x-model="newHistory.period" class="w-full py-2 px-3 border rounded-lg">
+              <select x-model="newHistory.period" @change="onPeriodChange()" class="w-full py-2 px-3 border rounded-lg">
                 <option value="">Seleccionar...</option>
                 <template x-for="p in availablePeriods" :key="p.value">
                   <option :value="p.value" x-text="p.label"></option>
@@ -366,7 +366,7 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm text-gray-600 mb-1">Total Facturado (opcional)</label>
+              <label class="block text-sm text-gray-600 mb-1">Total Facturado</label>
               <input type="number" x-model.number="newHistory.total_billed" 
                      class="w-full py-2 px-3 border rounded-lg" placeholder="0">
             </div>
@@ -377,6 +377,45 @@
               </button>
             </div>
           </div>
+          
+          <!-- Loading -->
+          <div x-show="historyLoading" class="mt-3 text-center text-gray-500">
+            <span class="inline-block animate-spin mr-2">⏳</span> Calculando...
+          </div>
+          
+          <!-- Sugerencia basada en facturas -->
+          <div x-show="historySuggestion && !historyLoading" x-transition class="mt-3">
+            <template x-if="historySuggestion?.hasData">
+              <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm text-blue-800">
+                      <strong>📊 Basado en tus facturas sincronizadas:</strong>
+                    </p>
+                    <p class="text-sm text-blue-700 mt-1">
+                      <span x-text="historySuggestion.invoiceCount"></span> facturas | 
+                      Total: <strong x-text="formatCurrency(historySuggestion.totalBilled)"></strong> |
+                      Categoría sugerida: <strong x-text="historySuggestion.suggestedCategory"></strong>
+                    </p>
+                    <p class="text-xs text-blue-600 mt-1" x-text="historySuggestion.periodLabel"></p>
+                  </div>
+                  <button @click="applySuggestion()" 
+                          class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                    Aplicar
+                  </button>
+                </div>
+              </div>
+            </template>
+            <template x-if="historySuggestion && !historySuggestion.hasData">
+              <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p class="text-sm text-yellow-800">
+                  ⚠️ No hay facturas sincronizadas para este período (<span x-text="historySuggestion.periodLabel"></span>). 
+                  Ingresá los datos manualmente.
+                </p>
+              </div>
+            </template>
+          </div>
+          
           <div x-show="historyError" class="mt-2 text-red-600 text-sm" x-text="historyError"></div>
         </div>
         

@@ -14,6 +14,8 @@ function recategorizationApp() {
     categoryHistory: [],
     showHistoryForm: false,
     historyError: '',
+    historyLoading: false,
+    historySuggestion: null,
     newHistory: {
       period: '',
       category: '',
@@ -187,14 +189,58 @@ function recategorizationApp() {
         
         if (response.ok) {
           await this.loadCategoryHistory();
+          await this.loadData(); // Recargar datos para actualizar categoría actual
           this.showHistoryForm = false;
           this.newHistory = { period: '', category: '', total_billed: null, notes: '' };
+          this.historySuggestion = null;
         } else {
           const error = await response.json();
           this.historyError = error.error || 'Error al guardar';
         }
       } catch (error) {
         this.historyError = 'Error de conexión';
+      }
+    },
+    
+    async onPeriodChange() {
+      if (!this.newHistory.period || !this.selectedAccountId) {
+        this.historySuggestion = null;
+        return;
+      }
+      
+      this.historyLoading = true;
+      this.historySuggestion = null;
+      
+      try {
+        const response = await fetch(
+          `/api/recategorization/suggest?account_id=${this.selectedAccountId}&period=${this.newHistory.period}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          }
+        );
+        
+        if (response.ok) {
+          this.historySuggestion = await response.json();
+          
+          // Auto-completar los campos con la sugerencia
+          if (this.historySuggestion.hasData) {
+            this.newHistory.total_billed = this.historySuggestion.totalBilled;
+            this.newHistory.category = this.historySuggestion.suggestedCategory;
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching suggestion:', error);
+      }
+      
+      this.historyLoading = false;
+    },
+    
+    applySuggestion() {
+      if (this.historySuggestion) {
+        this.newHistory.total_billed = this.historySuggestion.totalBilled;
+        this.newHistory.category = this.historySuggestion.suggestedCategory;
       }
     },
     
@@ -269,8 +315,11 @@ function recategorizationApp() {
         total_billed: item.total_billed || null,
         notes: item.notes || ''
       };
+      this.historySuggestion = null;
       this.showHistoryForm = true;
       this.historyError = '';
+      // Cargar sugerencia para el período
+      this.onPeriodChange();
     },
     
     runSimulation() {
