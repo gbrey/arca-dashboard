@@ -5,6 +5,7 @@ import { handleLimits } from '../../src/api/limits';
 import { handleRecategorization } from '../../src/api/recategorization';
 import { getArcaAccounts, connectArcaAccount, getArcaAccount, updateArcaAccount, setDefaultAccount } from '../../src/api/accounts';
 import { getProductionCertificate, registerCuitInAfipSdk } from '../../src/api/certificates';
+import { handleAdmin } from '../../src/api/admin';
 
 export const onRequest = async (context: { request: Request; env: Env }) => {
   const { request, env } = context;
@@ -66,6 +67,10 @@ export const onRequest = async (context: { request: Request; env: Env }) => {
       // Certificate routes
       else if (path.startsWith('/api/certificates')) {
         response = await handleCertificates(request, env);
+      }
+      // Admin routes
+      else if (path.startsWith('/api/admin')) {
+        response = await handleAdmin(request, env);
       }
       else {
         response = new Response(JSON.stringify({ error: 'Ruta no encontrada' }), {

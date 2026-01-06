@@ -74,12 +74,26 @@ export async function registerUser(env: Env, request: RegisterRequest): Promise<
 export async function loginUser(env: Env, request: AuthRequest): Promise<Response> {
   try {
     const user = await env.DB.prepare(
-      'SELECT id, email, password_hash FROM users WHERE email = ?'
-    ).bind(request.email).first<{ id: string; email: string; password_hash: string }>();
+      'SELECT id, email, password_hash, is_admin, is_blocked FROM users WHERE email = ?'
+    ).bind(request.email).first<{ 
+      id: string; 
+      email: string; 
+      password_hash: string; 
+      is_admin: number;
+      is_blocked: number;
+    }>();
     
     if (!user) {
       return new Response(JSON.stringify({ error: 'Credenciales inválidas' }), {
         status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Verificar si el usuario está bloqueado
+    if (user.is_blocked === 1) {
+      return new Response(JSON.stringify({ error: 'Usuario bloqueado. Contacta al administrador.' }), {
+        status: 403,
         headers: { 'Content-Type': 'application/json' }
       });
     }
@@ -97,7 +111,11 @@ export async function loginUser(env: Env, request: AuthRequest): Promise<Respons
     return new Response(JSON.stringify({ 
       success: true, 
       token,
-      user: { id: user.id, email: user.email }
+      user: { 
+        id: user.id, 
+        email: user.email,
+        is_admin: user.is_admin === 1
+      }
     }), {
       status: 200,
       headers: { 

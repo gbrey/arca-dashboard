@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Límites Monotributo - ARCA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="bg-gray-100 min-h-screen" x-data="limitsApp()" x-init="init()">
+  <!-- Navbar -->
+  <nav class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center space-x-8">
+          <h1 class="text-xl font-bold text-gray-800">ARCA</h1>
+          <div class="hidden md:flex items-center space-x-1">
+            <a href="/index.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Dashboard
+            </a>
+            <a href="/invoices.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Facturas
+            </a>
+            <a href="/recategorization.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Recategorización
+            </a>
+            <a href="/simulator.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Simulador
+            </a>
+            <a href="/limits.html" class="px-3 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700">
+              Límites
+            </a>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <!-- Menú de Perfil -->
+          <div class="relative" x-data="profileMenuComponent()" @click.away="showProfileMenu = false">
+            <button 
+              @click="showProfileMenu = !showProfileMenu"
+              class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title="Perfil"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+              </svg>
+            </button>
+            <!-- Dropdown Menu -->
+            <div 
+              x-show="showProfileMenu"
+              x-transition
+              class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200"
+              style="display: none;"
+            >
+              <a href="/accounts.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                👤 Ver Cuentas
+              </a>
+              <button @click="showResetPasswordModal = true" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                🔒 Resetear Contraseña
+              </button>
+              <div class="border-t border-gray-200 my-1"></div>
+              <button @click="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                🚪 Salir
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Menú móvil -->
+      <div class="md:hidden border-t pt-2 pb-2">
+        <div class="flex space-x-1 overflow-x-auto">
+          <a href="/index.html" class="flex-shrink-0 text-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Dashboard
+          </a>
+          <a href="/invoices.html" class="flex-shrink-0 text-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Facturas
+          </a>
+          <a href="/recategorization.html" class="flex-shrink-0 text-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Recat.
+          </a>
+          <a href="/simulator.html" class="flex-shrink-0 text-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Simulador
+          </a>
+          <a href="/limits.html" class="flex-shrink-0 text-center px-3 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700">
+            Límites
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
+      <p class="mt-4 text-gray-600">Cargando límites...</p>
+    </div>
+
+    <!-- Content -->
+    <div x-show="!loading">
+      <!-- Header -->
+      <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">Límites del Monotributo</h1>
+        <p class="mt-2 text-gray-600">Gestión de límites por categoría según actualizaciones de AFIP</p>
+        <div x-show="!isAdmin" class="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+          ℹ️ Solo el administrador puede modificar los límites
+        </div>
+      </div>
+
+      <!-- Add New Limit (Solo Admin) -->
+      <div x-show="isAdmin && showForm" class="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">
+          <span x-text="editingId ? 'Editar Límites' : 'Agregar Nuevos Límites'"></span>
+        </h2>
+        
+        <div x-show="error" class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded" x-text="error"></div>
+        
+        <form @submit.prevent="saveLimits()" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Período</label>
+              <select x-model="form.period" required class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                <option value="">Seleccionar período</option>
+                <template x-for="period in availablePeriods" :key="period.value">
+                  <option :value="period.value" x-text="period.label"></option>
+                </template>
+              </select>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Vigencia</label>
+              <input type="date" x-model="form.valid_from" required class="w-full px-3 py-2 border border-gray-300 rounded-md">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Límites por Categoría</label>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <template x-for="cat in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']" :key="cat">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1" x-text="'Categoría ' + cat"></label>
+                  <input 
+                    type="number" 
+                    x-model.number="form.limits[cat]" 
+                    required 
+                    step="0.01"
+                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md"
+                    placeholder="0.00"
+                  >
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Fuente</label>
+            <input type="text" x-model="form.source" placeholder="Ej: AFIP Resolución 123/2024" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Notas (opcional)</label>
+            <textarea x-model="form.notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Notas adicionales..."></textarea>
+          </div>
+
+          <div class="flex space-x-2">
+            <button 
+              type="submit"
+              :disabled="saving"
+              class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              <span x-show="!saving" x-text="editingId ? 'Actualizar' : 'Guardar'"></span>
+              <span x-show="saving">Guardando...</span>
+            </button>
+            <button 
+              type="button"
+              @click="cancelForm()"
+              class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Add Button (Solo Admin) -->
+      <div x-show="isAdmin && !showForm" class="mb-6">
+        <button 
+          @click="showForm = true"
+          class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+        >
+          + Agregar Nuevos Límites
+        </button>
+      </div>
+
+      <!-- Limits History -->
+      <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b">
+          <h2 class="text-lg font-semibold text-gray-800">Historial de Límites</h2>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Período</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vigencia</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categorías</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
+                <th x-show="isAdmin" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              <template x-for="limit in limitsHistory" :key="limit.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="font-medium" x-text="formatPeriod(limit.period)"></span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="formatDate(limit.valid_from)"></td>
+                  <td class="px-6 py-4">
+                    <div class="flex flex-wrap gap-1">
+                      <template x-for="cat in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']" :key="cat">
+                        <span class="text-xs px-2 py-1 bg-gray-100 rounded" x-text="cat + ': ' + formatCurrency(limit.limits[cat])"></span>
+                      </template>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 text-sm text-gray-600" x-text="limit.source || '-'"></td>
+                  <td x-show="isAdmin" class="px-6 py-4 whitespace-nowrap text-sm">
+                    <button 
+                      @click="editLimits(limit)"
+                      class="text-blue-600 hover:text-blue-800 mr-3"
+                    >
+                      Editar
+                    </button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="limitsHistory.length === 0">
+                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                  No hay límites registrados
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Resetear Contraseña -->
+  <div x-data="profileMenuComponent()">
+    <div x-show="showResetPasswordModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;" @click.away="showResetPasswordModal = false">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4" @click.stop>
+        <h3 class="text-xl font-semibold mb-4">Resetear Contraseña</h3>
+        
+        <div x-show="resetPasswordError" class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded" x-text="resetPasswordError"></div>
+        <div x-show="resetPasswordSuccess" class="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded" x-text="resetPasswordSuccess"></div>
+        
+        <form @submit.prevent="resetPassword()" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña Actual</label>
+            <input 
+              type="password" 
+              x-model="resetPasswordForm.current_password" 
+              required
+              class="w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña</label>
+            <input 
+              type="password" 
+              x-model="resetPasswordForm.new_password" 
+              required
+              minlength="6"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+            <p class="text-xs text-gray-500 mt-1">Mínimo 6 caracteres</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar Nueva Contraseña</label>
+            <input 
+              type="password" 
+              x-model="resetPasswordForm.confirm_password" 
+              required
+              class="w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+          </div>
+          
+          <div class="flex space-x-2">
+            <button 
+              type="submit"
+              :disabled="resettingPassword"
+              class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              <span x-show="!resettingPassword">Guardar</span>
+              <span x-show="resettingPassword">Guardando...</span>
+            </button>
+            <button 
+              type="button"
+              @click="showResetPasswordModal = false; resetPasswordForm = { current_password: '', new_password: '', confirm_password: '' }; resetPasswordError = ''; resetPasswordSuccess = '';"
+              class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/profile-menu.js"></script>
+  <script src="/js/limits.js"></script>
+</body>
+</html>
+

@@ -460,8 +460,20 @@ export async function getLimitsHistory(env: Env): Promise<Response> {
   }
 }
 
-export async function saveLimitsHistory(env: Env, data: any): Promise<Response> {
+export async function saveLimitsHistory(env: Env, userId: string, data: any): Promise<Response> {
   try {
+    // Verificar que el usuario sea admin
+    const user = await env.DB.prepare(
+      'SELECT is_admin FROM users WHERE id = ?'
+    ).bind(userId).first<{ is_admin: number }>();
+    
+    if (!user || user.is_admin !== 1) {
+      return new Response(JSON.stringify({ error: 'No tienes permisos para modificar límites' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
     const { period, valid_from, limits, source, notes } = data;
     
     if (!period || !valid_from || !limits) {
@@ -668,7 +680,9 @@ export async function handleRecategorization(request: Request, env: Env): Promis
   // Rutas públicas (límites del monotributo)
   if (path === '/api/recategorization/limits') {
     if (request.method === 'GET') {
-      return getLimitsHistory(env);
+      // Si viene el parámetro only_latest=true, devolver solo el último
+      const onlyLatest = url.searchParams.get('only_latest') === 'true';
+      return getLimitsHistory(env, onlyLatest);
     }
     if (request.method === 'POST') {
       const userId = await getAuthUser(request, env);
@@ -679,7 +693,7 @@ export async function handleRecategorization(request: Request, env: Env): Promis
         });
       }
       const data = await request.json();
-      return saveLimitsHistory(env, data);
+      return saveLimitsHistory(env, userId, data);
     }
   }
   
