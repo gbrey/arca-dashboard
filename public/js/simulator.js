@@ -88,7 +88,12 @@ function simulatorApp() {
           console.log('Simulación cargada:', this.simulation);
           console.log('Meses hasta recategorización:', this.simulation.current?.months_to_recategorization);
           console.log('Próxima recategorización:', this.simulation.current?.next_recategorization);
-          console.log('Número de proyecciones:', this.simulation.scenarios?.conservative?.projections?.length);
+          console.log('Número de proyecciones por escenario:');
+          console.log('  - Conservative:', this.simulation.scenarios?.conservative?.projections?.length);
+          console.log('  - Normal:', this.simulation.scenarios?.normal?.projections?.length);
+          console.log('  - Aggressive:', this.simulation.scenarios?.aggressive?.projections?.length);
+          console.log('  - Maximum:', this.simulation.scenarios?.maximum?.projections?.length);
+          console.log('Proyecciones Conservative:', this.simulation.scenarios?.conservative?.projections);
           
           // Store category limits
           this.categoryLimits = this.simulation.all_categories || {};
