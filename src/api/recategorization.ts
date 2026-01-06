@@ -193,6 +193,7 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       // Julio: límites vigentes desde el 1 de Julio
       const recategorizationMonthStart = new Date(period.deadline.getFullYear(), period.deadline.getMonth(), 1);
       const limitsForPeriod = await getLimitsForDate(env, recategorizationMonthStart);
+      console.log(`[Recategorization] Period ${period.name}, recategorizationMonthStart: ${recategorizationMonthStart.toISOString()}, limits keys: ${Object.keys(limitsForPeriod).join(', ')}`);
       
       // Obtener facturas del período
       const invoices = await env.DB.prepare(`
@@ -554,19 +555,23 @@ export async function saveLimitsHistory(env: Env, userId: string, data: any): Pr
 export async function getLimitsForDate(env: Env, date: Date): Promise<Record<string, number>> {
   try {
     const timestamp = Math.floor(date.getTime() / 1000);
+    console.log(`[getLimitsForDate] Looking for limits valid from <= ${date.toISOString()} (timestamp: ${timestamp})`);
     
     const result = await env.DB.prepare(`
-      SELECT limits_json FROM monotributo_limits_history 
+      SELECT limits_json, period, valid_from FROM monotributo_limits_history 
       WHERE valid_from <= ?
       ORDER BY valid_from DESC
       LIMIT 1
-    `).bind(timestamp).first<{ limits_json: string }>();
+    `).bind(timestamp).first<{ limits_json: string; period: string; valid_from: number }>();
     
     if (result) {
-      return JSON.parse(result.limits_json);
+      const limits = JSON.parse(result.limits_json);
+      console.log(`[getLimitsForDate] Found limits for period ${result.period}, valid_from: ${new Date(result.valid_from * 1000).toISOString()}, limits keys: ${Object.keys(limits).join(', ')}`);
+      return limits;
     }
     
     // Si no hay historial, usar los límites actuales hardcodeados
+    console.log(`[getLimitsForDate] No historical limits found, using hardcoded MONOTRIBUTO_LIMITS`);
     return MONOTRIBUTO_LIMITS;
   } catch (error) {
     console.error('[getLimitsForDate] Error:', error);
