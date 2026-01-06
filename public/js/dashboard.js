@@ -208,12 +208,18 @@ function dashboardApp() {
           monthLabels.push(key);
         }
         
-        // Agrupar facturas por mes
+        // Agrupar facturas por mes (las notas de crédito restan)
         invoices.forEach(invoice => {
           const date = new Date(invoice.date * 1000);
           const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
           if (monthlyData[key] !== undefined) {
-            monthlyData[key] += invoice.amount;
+            // Identificar si es nota de crédito
+            const isNotaCredito = this.isNotaCredito(invoice);
+            if (isNotaCredito) {
+              monthlyData[key] -= invoice.amount; // Restar notas de crédito
+            } else {
+              monthlyData[key] += invoice.amount; // Sumar facturas y notas de débito
+            }
           }
         });
         
@@ -245,6 +251,8 @@ function dashboardApp() {
         const ctx = document.getElementById('revenueChart');
         if (ctx) {
           if (this.revenueChart) {
+            // Detener animaciones antes de destruir
+            this.revenueChart.stop();
             this.revenueChart.destroy();
           }
           
@@ -262,6 +270,7 @@ function dashboardApp() {
             },
             options: {
               responsive: true,
+              animation: false, // Deshabilitar animaciones para evitar problemas con cambios rápidos
               plugins: {
                 legend: {
                   display: false
@@ -286,6 +295,9 @@ function dashboardApp() {
     },
     
     navigateChart(direction) {
+      // Evitar navegación mientras se está cargando
+      if (this.loading) return;
+      
       // direction: -1 = anterior, 1 = siguiente, 0 = resetear
       if (direction === 0) {
         // Resetear a los últimos N meses
@@ -331,6 +343,29 @@ function dashboardApp() {
       
       // Recargar gráfico con nuevo período
       this.loadRevenueChart();
+    },
+    
+    isNotaCredito(invoice) {
+      // Códigos de notas de crédito según AFIP
+      const notasCreditoCodes = ['3', '8', '13', '21', '53', '86', '87'];
+      
+      let codigo = null;
+      
+      // Intentar obtener desde cached_data
+      if (invoice.cached_data) {
+        try {
+          const cached = typeof invoice.cached_data === 'string' ? JSON.parse(invoice.cached_data) : invoice.cached_data;
+          if (cached.tipo) codigo = String(cached.tipo);
+        } catch (e) {}
+      }
+      
+      // Si no, intentar parsear desde arca_invoice_id (formato: TIPO-PTOVENTA-NUMERO)
+      if (!codigo && invoice.arca_invoice_id) {
+        const parts = invoice.arca_invoice_id.split('-');
+        if (parts.length > 0) codigo = parts[0];
+      }
+      
+      return codigo && notasCreditoCodes.includes(codigo);
     },
     
     getTipoComprobante(invoice) {
