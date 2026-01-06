@@ -154,7 +154,8 @@ function recategorizationApp() {
     
     async loadLimitsHistory() {
       try {
-        const response = await fetch('/api/recategorization/limits', {
+        // Solo cargar el último límite vigente
+        const response = await fetch('/api/recategorization/limits?only_latest=true', {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -162,7 +163,7 @@ function recategorizationApp() {
         
         if (response.ok) {
           const data = await response.json();
-          this.limitsHistory = data.history || [];
+          this.limitsHistory = data.limits || [];
         }
       } catch (error) {
         console.error('Error loading limits history:', error);
