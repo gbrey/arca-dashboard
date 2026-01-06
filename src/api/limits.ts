@@ -482,7 +482,8 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
     // Asegurar mínimo 1 mes y máximo 6 meses
     monthsToSimulate = Math.max(1, Math.min(monthsToSimulate, 6));
     
-    console.log(`[Simulador] Cálculo de meses: actual=${now.getMonth() + 1}, próxima recat=${nextRecatDate.getMonth() + 1}, meses a simular=${monthsToSimulate}`);
+    console.log(`[Simulador] Cálculo de meses: actual=${now.getMonth() + 1}/${now.getFullYear()}, próxima recat=${nextRecatDate.getMonth() + 1}/${nextRecatDate.getFullYear()}, meses a simular=${monthsToSimulate}`);
+    console.log(`[Simulador] currentMonthStart=${currentMonthStart.toISOString()}, nextRecatMonthStart=${nextRecatMonthStart.toISOString()}`);
     
     // Obtener facturas de los últimos 13 meses (necesitamos 13 para saber qué "sale" cada mes)
     const thirteenMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 13, 1);
