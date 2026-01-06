@@ -96,79 +96,51 @@ function getRecategorizationPeriods(now: Date) {
 
 // Generar timeline de recategorizaciones (pasadas y futuras)
 function generateTimeline(now: Date, currentCategory: string) {
-  const timeline = [];
+  const timeline: Array<{date: Date; type: string; label: string; status: string; category: string | null}> = [];
   const currentYear = now.getFullYear();
+  const nowTime = now.getTime();
   
-  // Últimas 2 recategorizaciones pasadas
-  for (let i = 2; i >= 1; i--) {
-    // Enero pasado
-    if (now.getMonth() >= 0) {
-      timeline.push({
-        date: new Date(currentYear - i + 1, 0, 20),
-        type: 'january',
-        label: `Ene ${currentYear - i + 1}`,
-        status: 'past',
-        category: null // No sabemos la categoría pasada
-      });
-    }
-    // Julio pasado
-    if (now.getMonth() >= 6 || i > 1) {
-      timeline.push({
-        date: new Date(currentYear - i + 1, 6, 20),
-        type: 'july', 
-        label: `Jul ${currentYear - i + 1}`,
-        status: 'past',
-        category: null
-      });
-    }
-  }
-  
-  // Próximas 4 recategorizaciones
-  for (let i = 0; i < 4; i++) {
-    const year = currentYear + Math.floor((now.getMonth() + i * 6) / 12);
-    const isJanuary = (i % 2 === 0 && now.getMonth() < 1) || (i % 2 === 1 && now.getMonth() >= 1);
+  // Generar todas las recategorizaciones desde 2 años atrás hasta 2 años adelante
+  for (let year = currentYear - 1; year <= currentYear + 2; year++) {
+    // Enero de cada año
+    const januaryDate = new Date(year, 0, 20);
+    timeline.push({
+      date: januaryDate,
+      type: 'january',
+      label: `Ene ${year}`,
+      status: januaryDate.getTime() <= nowTime ? 'past' : 'future',
+      category: null
+    });
     
-    if (i < 2) {
-      // Próxima enero
-      const nextJanYear = now.getMonth() >= 1 ? currentYear + 1 : currentYear;
-      timeline.push({
-        date: new Date(nextJanYear + Math.floor(i / 2), 0, 20),
-        type: 'january',
-        label: `Ene ${nextJanYear + Math.floor(i / 2)}`,
-        status: i === 0 ? 'next' : 'future',
-        category: null
-      });
-      
-      // Próxima julio
-      const nextJulYear = now.getMonth() >= 7 ? currentYear + 1 : currentYear;
-      timeline.push({
-        date: new Date(nextJulYear + Math.floor(i / 2), 6, 20),
-        type: 'july',
-        label: `Jul ${nextJulYear + Math.floor(i / 2)}`,
-        status: i === 0 ? 'next' : 'future',
-        category: null
-      });
-    }
+    // Julio de cada año
+    const julyDate = new Date(year, 6, 20);
+    timeline.push({
+      date: julyDate,
+      type: 'july',
+      label: `Jul ${year}`,
+      status: julyDate.getTime() <= nowTime ? 'past' : 'future',
+      category: null
+    });
   }
   
-  // Ordenar y filtrar duplicados
+  // Ordenar por fecha
   timeline.sort((a, b) => a.date.getTime() - b.date.getTime());
   
-  // Marcar la actual
-  const nowTime = now.getTime();
+  // Marcar la próxima (primera que sea 'future')
   let foundNext = false;
   for (const item of timeline) {
-    if (!foundNext && item.date.getTime() > nowTime) {
+    if (!foundNext && item.status === 'future') {
       item.status = 'next';
       foundNext = true;
-    } else if (item.date.getTime() <= nowTime) {
-      item.status = 'past';
-    } else if (foundNext) {
-      item.status = 'future';
+      break;
     }
   }
   
-  return timeline.slice(0, 8); // Últimas 8 entradas
+  // Filtrar: mostrar 2-3 pasadas y las futuras cercanas
+  const pastItems = timeline.filter(t => t.status === 'past').slice(-3);
+  const futureItems = timeline.filter(t => t.status === 'next' || t.status === 'future').slice(0, 4);
+  
+  return [...pastItems, ...futureItems];
 }
 
 export async function getRecategorizationData(env: Env, accountId: string, userId: string): Promise<Response> {
