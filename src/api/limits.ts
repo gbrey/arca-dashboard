@@ -368,6 +368,17 @@ function getCategoryForAmount(amount: number): string {
   return 'EXCEDIDO'; // Se pasó de todas las categorías
 }
 
+// Determinar la categoría usando límites históricos personalizados
+function getCategoryForAmountWithLimits(amount: number, limits: Record<string, number>): string {
+  const categories = Object.entries(limits).sort((a, b) => a[1] - b[1]);
+  for (const [category, limit] of categories) {
+    if (amount <= limit) {
+      return category;
+    }
+  }
+  return 'EXCEDIDO';
+}
+
 // Obtener la siguiente categoría
 function getNextCategory(currentCategory: string): string | null {
   const categories = Object.keys(MONOTRIBUTO_LIMITS);
@@ -392,16 +403,72 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
       });
     }
     
-    // Obtener límite configurado
-    const limit = await env.DB.prepare(
-      'SELECT * FROM billing_limits WHERE arca_account_id = ?'
-    ).bind(accountId).first<BillingLimit>();
+    // Obtener categoría actual desde el historial (la más reciente)
+    // Si no hay historial, usa la más baja (A)
+    const lastCategoryHistory = await env.DB.prepare(`
+      SELECT category FROM category_history 
+      WHERE arca_account_id = ? 
+      ORDER BY period DESC 
+      LIMIT 1
+    `).bind(accountId).first<{ category: string }>();
     
-    const currentCategory = limit?.category || 'H';
-    const currentLimit = MONOTRIBUTO_LIMITS[currentCategory] || MONOTRIBUTO_LIMITS['H'];
+    const currentCategory = lastCategoryHistory?.category || 'A';
+    
+    // Obtener límites históricos para el período actual
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+    
+    // Determinar qué período de límites usar
+    // Si estamos en Enero-Junio, usar límites de Enero
+    // Si estamos en Julio-Diciembre, usar límites de Julio
+    let limitsPeriod: string;
+    if (currentMonth < 6) {
+      // Enero-Junio: usar límites de Enero del año actual
+      limitsPeriod = `${currentYear}-01`;
+    } else {
+      // Julio-Diciembre: usar límites de Julio del año actual
+      limitsPeriod = `${currentYear}-07`;
+    }
+    
+    // Obtener límites históricos
+    const limitsHistory = await env.DB.prepare(`
+      SELECT limits_json FROM monotributo_limits_history 
+      WHERE period = ?
+      ORDER BY period DESC
+      LIMIT 1
+    `).bind(limitsPeriod).first<{ limits_json: string }>();
+    
+    // Parsear límites históricos o usar los por defecto
+    let limits: Record<string, number>;
+    if (limitsHistory?.limits_json) {
+      try {
+        limits = JSON.parse(limitsHistory.limits_json);
+      } catch (e) {
+        limits = MONOTRIBUTO_LIMITS;
+      }
+    } else {
+      limits = MONOTRIBUTO_LIMITS;
+    }
+    
+    const currentLimit = limits[currentCategory] || limits['A'];
+    
+    // Calcular cuántos meses simular según la próxima recategorización
+    // Importar función de recategorización
+    const { getRecategorizationPeriods } = await import('./recategorization');
+    const periods = getRecategorizationPeriods(now);
+    const nextRecategorization = periods[0]; // La más cercana
+    
+    // Calcular meses hasta la próxima recategorización
+    const nextRecatDate = nextRecategorization.deadline;
+    const monthsUntilRecat = Math.max(1, Math.ceil(
+      (nextRecatDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30)
+    ));
+    
+    // Limitar a máximo 6 meses (un semestre)
+    const monthsToSimulate = Math.min(monthsUntilRecat, 6);
     
     // Obtener facturas de los últimos 13 meses (necesitamos 13 para saber qué "sale" cada mes)
-    const now = new Date();
     const thirteenMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 13, 1);
     const thirteenMonthsAgoTimestamp = Math.floor(thirteenMonthsAgo.getTime() / 1000);
     
@@ -464,8 +531,8 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
       const projections = [];
       let runningTotal = totalBilled;
       
-      // Mes actual (i=0) + próximos 2 meses (i=1, i=2)
-      for (let i = 0; i <= 2; i++) {
+      // Simular desde el mes actual hasta la próxima recategorización
+      for (let i = 0; i < monthsToSimulate; i++) {
         const projectionDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + i, 1);
         const projectionKey = `${projectionDate.getFullYear()}-${String(projectionDate.getMonth() + 1).padStart(2, '0')}`;
         
@@ -477,9 +544,11 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
         // Nuevo total = total anterior - lo que sale + lo nuevo
         runningTotal = runningTotal - exitingAmount + monthlyAmount;
         
-        const projectedCategory = getCategoryForAmount(runningTotal);
+        // Usar límites históricos para determinar categoría
+        const projectedCategory = getCategoryForAmountWithLimits(runningTotal, limits);
         const exceedsCurrentCategory = runningTotal > currentLimit;
-        const exceedsAllCategories = runningTotal > MONOTRIBUTO_LIMITS['K'];
+        const maxLimit = Math.max(...Object.values(limits));
+        const exceedsAllCategories = runningTotal > maxLimit;
         
         let status: 'ok' | 'warning' | 'exceeded' = 'ok';
         if (exceedsAllCategories) {
@@ -495,7 +564,7 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
           new_amount: Math.round(monthlyAmount),
           total: Math.round(runningTotal),
           category: projectedCategory,
-          category_limit: MONOTRIBUTO_LIMITS[projectedCategory] || 0,
+          category_limit: limits[projectedCategory] || 0,
           status,
           exceeds_current: exceedsCurrentCategory
         });
@@ -509,8 +578,8 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
       const projections = [];
       let runningTotal = totalBilled;
       
-      // Mes actual (i=0) + próximos 2 meses (i=1, i=2)
-      for (let i = 0; i <= 2; i++) {
+      // Simular desde el mes actual hasta la próxima recategorización
+      for (let i = 0; i < monthsToSimulate; i++) {
         const projectionDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + i, 1);
         const projectionKey = `${projectionDate.getFullYear()}-${String(projectionDate.getMonth() + 1).padStart(2, '0')}`;
         
@@ -553,10 +622,12 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
         percentage: Math.round((totalBilled / currentLimit) * 10000) / 100,
         monthly_average: Math.round(monthlyAverage),
         next_category: getNextCategory(currentCategory),
-        next_category_limit: getNextCategory(currentCategory) ? MONOTRIBUTO_LIMITS[getNextCategory(currentCategory)!] : null
+        next_category_limit: getNextCategory(currentCategory) ? limits[getNextCategory(currentCategory)!] : null,
+        months_to_recategorization: monthsToSimulate,
+        next_recategorization: nextRecategorization.name
       },
       months_data: last12Months,
-      all_categories: MONOTRIBUTO_LIMITS,
+      all_categories: limits,
       scenarios: {
         conservative: {
           name: 'Conservador',

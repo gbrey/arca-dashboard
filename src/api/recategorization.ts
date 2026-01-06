@@ -29,7 +29,7 @@ function getCategoryInfo(category: string) {
 }
 
 // Calcular los períodos de recategorización
-function getRecategorizationPeriods(now: Date) {
+export function getRecategorizationPeriods(now: Date) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-indexed (0 = Enero, 6 = Julio)
   const currentDay = now.getDate();

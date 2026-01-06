@@ -109,7 +109,13 @@
   <div class="gradient-bg text-white py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <h1 class="text-3xl font-bold mb-2">Simulador de Escenarios</h1>
-      <p class="text-purple-200">Proyecta tu facturación y evita sorpresas con el monotributo</p>
+      <p class="text-purple-200">
+        Proyecta tu facturación hasta la próxima recategorización
+        <span x-show="simulation.current?.next_recategorization" class="block mt-1 text-sm">
+          Próxima recategorización: <span x-text="simulation.current?.next_recategorization"></span> 
+          (<span x-text="simulation.current?.months_to_recategorization"></span> <span x-text="simulation.current?.months_to_recategorization === 1 ? 'mes' : 'meses'"></span>)
+        </span>
+      </p>
     </div>
   </div>
 
