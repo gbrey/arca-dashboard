@@ -31,19 +31,39 @@ function getCategoryInfo(category: string) {
 // Calcular los períodos de recategorización
 function getRecategorizationPeriods(now: Date) {
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-indexed
+  const currentMonth = now.getMonth(); // 0-indexed (0 = Enero, 6 = Julio)
+  const currentDay = now.getDate();
   
   // Período de Enero: evalúa Ene-Dic del año anterior
   // Período de Julio: evalúa Jul del año anterior a Jun del mismo año
+  // La recategorización se hace hasta el día 20 del mes correspondiente
   
   const periods = [];
   
   // Determinar próxima recategorización de Enero
-  let nextJanuaryYear = currentMonth >= 0 ? currentYear + 1 : currentYear;
+  // Si estamos en Enero y antes del día 20, es este Enero
+  // Si estamos después de Enero 20, es el próximo Enero
+  let nextJanuaryYear: number;
+  if (currentMonth === 0 && currentDay <= 20) {
+    // Estamos en Enero antes del deadline
+    nextJanuaryYear = currentYear;
+  } else {
+    // Ya pasó Enero 20, la próxima es el año que viene
+    nextJanuaryYear = currentYear + 1;
+  }
   const januaryDeadline = new Date(nextJanuaryYear, 0, 20); // 20 de enero
   
   // Determinar próxima recategorización de Julio
-  let nextJulyYear = currentMonth >= 6 ? currentYear + 1 : currentYear;
+  // Si estamos antes de Julio 20, es este Julio
+  // Si estamos después de Julio 20, es el próximo Julio
+  let nextJulyYear: number;
+  if (currentMonth < 6 || (currentMonth === 6 && currentDay <= 20)) {
+    // Estamos antes de Julio 20
+    nextJulyYear = currentYear;
+  } else {
+    // Ya pasó Julio 20, la próxima es el año que viene
+    nextJulyYear = currentYear + 1;
+  }
   const julyDeadline = new Date(nextJulyYear, 6, 20); // 20 de julio
   
   // Recategorización de Enero
