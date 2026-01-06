@@ -461,12 +461,25 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
     
     // Calcular meses hasta la próxima recategorización
     const nextRecatDate = nextRecategorization.deadline;
-    const monthsUntilRecat = Math.max(1, Math.ceil(
-      (nextRecatDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30)
-    ));
     
-    // Limitar a máximo 6 meses (un semestre)
-    const monthsToSimulate = Math.min(monthsUntilRecat, 6);
+    // Calcular meses completos hasta la recategorización
+    // Si estamos en Enero y la próxima es Julio, son 6 meses (Ene, Feb, Mar, Abr, May, Jun)
+    // Si estamos en Mayo y la próxima es Julio, son 2 meses (May, Jun)
+    // Si estamos en Junio y la próxima es Julio, es 1 mes (Jun)
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextRecatMonthStart = new Date(nextRecatDate.getFullYear(), nextRecatDate.getMonth(), 1);
+    
+    let monthsToSimulate = 0;
+    let checkMonth = new Date(currentMonthStart);
+    
+    // Contar meses completos desde el mes actual hasta el mes de recategorización (excluyendo el mes de recategorización)
+    while (checkMonth < nextRecatMonthStart) {
+      monthsToSimulate++;
+      checkMonth = new Date(checkMonth.getFullYear(), checkMonth.getMonth() + 1, 1);
+    }
+    
+    // Asegurar mínimo 1 mes y máximo 6 meses
+    monthsToSimulate = Math.max(1, Math.min(monthsToSimulate, 6));
     
     // Obtener facturas de los últimos 13 meses (necesitamos 13 para saber qué "sale" cada mes)
     const thirteenMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 13, 1);
