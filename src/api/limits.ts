@@ -417,13 +417,13 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
     // Obtener límites históricos para el período actual
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-indexed
+    const currentMonthNum = now.getMonth(); // 0-indexed
     
     // Determinar qué período de límites usar
     // Si estamos en Enero-Junio, usar límites de Enero
     // Si estamos en Julio-Diciembre, usar límites de Julio
     let limitsPeriod: string;
-    if (currentMonth < 6) {
+    if (currentMonthNum < 6) {
       // Enero-Junio: usar límites de Enero del año actual
       limitsPeriod = `${currentYear}-01`;
     } else {
