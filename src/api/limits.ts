@@ -462,9 +462,27 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
     const nowTime = now.getTime();
     const futurePeriods = periods.filter(p => p.deadline.getTime() > nowTime);
     
-    // Si hay períodos futuros, usar el primero (más cercano)
-    // Si no hay períodos futuros, usar el último período (puede ser que estemos en el día exacto)
-    const nextRecategorization = futurePeriods.length > 0 ? futurePeriods[0] : periods[periods.length - 1];
+    // Si estamos en el mes de recategorización (enero o julio), tomar el SIGUIENTE período futuro
+    // Si no estamos en el mes de recategorización, tomar el primero futuro
+    let nextRecategorization;
+    if (futurePeriods.length > 0) {
+      // Si el primer período futuro es del mes actual y aún no pasó el deadline,
+      // tomar el segundo período futuro (el siguiente)
+      const firstFuture = futurePeriods[0];
+      const isCurrentRecatMonth = (now.getMonth() === 0 && firstFuture.id === 'january') || 
+                                   (now.getMonth() === 6 && firstFuture.id === 'july');
+      
+      if (isCurrentRecatMonth && futurePeriods.length > 1) {
+        // Estamos en el mes de recategorización, tomar el siguiente
+        nextRecategorization = futurePeriods[1];
+      } else {
+        // No estamos en el mes de recategorización, tomar el primero futuro
+        nextRecategorization = futurePeriods[0];
+      }
+    } else {
+      // No hay períodos futuros, usar el último período
+      nextRecategorization = periods[periods.length - 1];
+    }
     
     console.log(`[Simulador] Períodos disponibles:`, periods.map(p => ({ name: p.name, deadline: p.deadline.toISOString(), daysRemaining: p.daysRemaining })));
     console.log(`[Simulador] Períodos futuros:`, futurePeriods.map(p => ({ name: p.name, deadline: p.deadline.toISOString() })));
