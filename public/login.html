@@ -119,13 +119,7 @@
             if (response.ok) {
               localStorage.setItem('token', data.token);
               localStorage.setItem('user', JSON.stringify(data.user));
-              
-              // Redirigir a admin si es administrador
-              if (data.user && data.user.is_admin) {
-                window.location.href = '/admin.html';
-              } else {
-                window.location.href = '/index.html';
-              }
+              window.location.href = '/index.html';
             } else {
               this.error = data.error || 'Error al iniciar sesión';
             }

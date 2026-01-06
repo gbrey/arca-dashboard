@@ -21,7 +21,8 @@ function adminApp() {
       period: '',
       valid_from: '',
       limits: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0, H: 0, I: 0, J: 0, K: 0 },
-      source: ''
+      source: '',
+      ipc_months: [0, 0, 0, 0, 0, 0] // IPC de los últimos 6 meses
     },
     
     get availablePeriods() {
@@ -175,9 +176,21 @@ function adminApp() {
         period: limit.period,
         valid_from: new Date(limit.valid_from * 1000).toISOString().split('T')[0],
         limits: { ...limit.limits },
-        source: limit.source || ''
+        source: limit.source || '',
+        ipc_months: [0, 0, 0, 0, 0, 0] // No se usa en edición
       };
       this.showLimitsForm = true;
+    },
+    
+    calculateAccumulatedIPC() {
+      // Calcular IPC acumulado: (1 + ipc1/100) * (1 + ipc2/100) * ... - 1
+      let accumulated = 1;
+      for (const ipc of this.limitForm.ipc_months) {
+        if (ipc && ipc !== 0) {
+          accumulated *= (1 + ipc / 100);
+        }
+      }
+      return ((accumulated - 1) * 100).toFixed(2);
     },
     
     async saveLimits() {
@@ -185,18 +198,27 @@ function adminApp() {
         const validFromDate = new Date(this.limitForm.valid_from);
         const validFromTimestamp = Math.floor(validFromDate.getTime() / 1000);
         
+        // Preparar datos, incluyendo IPC si está especificado
+        const requestData = {
+          period: this.limitForm.period,
+          valid_from: validFromTimestamp,
+          limits: this.limitForm.limits,
+          source: this.limitForm.source
+        };
+        
+        // Solo incluir IPC si hay valores y no es edición
+        const hasIPC = this.limitForm.ipc_months.some(ipc => ipc && ipc !== 0);
+        if (!this.editingLimitId && hasIPC) {
+          requestData.ipc_months = this.limitForm.ipc_months;
+        }
+        
         const response = await fetch('/api/recategorization/limits', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            period: this.limitForm.period,
-            valid_from: validFromTimestamp,
-            limits: this.limitForm.limits,
-            source: this.limitForm.source
-          })
+          body: JSON.stringify(requestData)
         });
         
         if (response.ok) {
@@ -220,7 +242,8 @@ function adminApp() {
         period: '',
         valid_from: '',
         limits: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0, H: 0, I: 0, J: 0, K: 0 },
-        source: ''
+        source: '',
+        ipc_months: [0, 0, 0, 0, 0, 0]
       };
       this.limitsError = '';
     },
