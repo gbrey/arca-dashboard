@@ -557,9 +557,34 @@ export async function saveLimitsHistory(env: Env, userId: string, data: any): Pr
 // Obtener los límites vigentes para una fecha específica
 export async function getLimitsForDate(env: Env, date: Date): Promise<Record<string, number>> {
   try {
-    const timestamp = Math.floor(date.getTime() / 1000);
-    console.log(`[getLimitsForDate] Looking for limits valid from <= ${date.toISOString()} (timestamp: ${timestamp})`);
+    // Usar el final del mes para asegurar que encontremos límites válidos desde el inicio del mes
+    // Por ejemplo, si buscamos límites para Enero 2026, queremos encontrar límites válidos desde el 1 de Enero 2026
+    // Usamos el último día del mes a las 23:59:59 para asegurar que encontremos cualquier límite válido en ese mes
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const endOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59));
+    const timestamp = Math.floor(endOfMonth.getTime() / 1000);
     
+    console.log(`[getLimitsForDate] Looking for limits valid from <= ${date.toISOString()} (end of month: ${endOfMonth.toISOString()}, timestamp: ${timestamp})`);
+    
+    // También buscar por período si es Enero o Julio
+    const period = `${year}-${String(month + 1).padStart(2, '0')}`;
+    console.log(`[getLimitsForDate] Also checking period: ${period}`);
+    
+    // Primero intentar buscar por período exacto (más preciso)
+    const periodResult = await env.DB.prepare(`
+      SELECT limits_json, period, valid_from FROM monotributo_limits_history 
+      WHERE period = ?
+      LIMIT 1
+    `).bind(period).first<{ limits_json: string; period: string; valid_from: number }>();
+    
+    if (periodResult) {
+      const limits = JSON.parse(periodResult.limits_json);
+      console.log(`[getLimitsForDate] Found limits by period ${periodResult.period}, valid_from: ${new Date(periodResult.valid_from * 1000).toISOString()}, limits keys: ${Object.keys(limits).join(', ')}`);
+      return limits;
+    }
+    
+    // Si no se encuentra por período, buscar por valid_from
     const result = await env.DB.prepare(`
       SELECT limits_json, period, valid_from FROM monotributo_limits_history 
       WHERE valid_from <= ?
@@ -569,12 +594,12 @@ export async function getLimitsForDate(env: Env, date: Date): Promise<Record<str
     
     if (result) {
       const limits = JSON.parse(result.limits_json);
-      console.log(`[getLimitsForDate] Found limits for period ${result.period}, valid_from: ${new Date(result.valid_from * 1000).toISOString()}, limits keys: ${Object.keys(limits).join(', ')}`);
+      console.log(`[getLimitsForDate] Found limits by valid_from for period ${result.period}, valid_from: ${new Date(result.valid_from * 1000).toISOString()}, limits keys: ${Object.keys(limits).join(', ')}`);
       return limits;
     }
     
     // Si no hay historial, usar los límites actuales hardcodeados
-    console.log(`[getLimitsForDate] No historical limits found, using hardcoded MONOTRIBUTO_LIMITS`);
+    console.log(`[getLimitsForDate] No historical limits found for period ${period} or valid_from <= ${endOfMonth.toISOString()}, using hardcoded MONOTRIBUTO_LIMITS`);
     return MONOTRIBUTO_LIMITS;
   } catch (error) {
     console.error('[getLimitsForDate] Error:', error);
