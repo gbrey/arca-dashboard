@@ -1,4 +1,4 @@
-import { Env, BillingLimit } from '../utils/db';
+import { Env } from '../utils/db';
 import { getAuthUser } from './auth';
 import { MONOTRIBUTO_LIMITS } from './limits';
 
@@ -157,12 +157,16 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       });
     }
     
-    // Obtener categoría actual
-    const limit = await env.DB.prepare(
-      'SELECT * FROM billing_limits WHERE arca_account_id = ?'
-    ).bind(accountId).first<BillingLimit>();
+    // Obtener categoría actual desde el historial (la más reciente)
+    // Si no hay historial, usa la más baja (A)
+    const lastCategoryHistory = await env.DB.prepare(`
+      SELECT category FROM category_history 
+      WHERE arca_account_id = ? 
+      ORDER BY period DESC 
+      LIMIT 1
+    `).bind(accountId).first<{ category: string }>();
     
-    const currentCategory = limit?.category || 'H';
+    const currentCategory = lastCategoryHistory?.category || 'A';
     const currentCategoryInfo = getCategoryInfo(currentCategory);
     
     const now = new Date();
