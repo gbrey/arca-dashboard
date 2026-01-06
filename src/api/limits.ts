@@ -457,7 +457,18 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
     // Importar función de recategorización
     const { getRecategorizationPeriods } = await import('./recategorization');
     const periods = getRecategorizationPeriods(now);
-    const nextRecategorization = periods[0]; // La más cercana
+    
+    // Filtrar solo períodos futuros (que aún no hayan pasado)
+    const nowTime = now.getTime();
+    const futurePeriods = periods.filter(p => p.deadline.getTime() > nowTime);
+    
+    // Si hay períodos futuros, usar el primero (más cercano)
+    // Si no hay períodos futuros, usar el último período (puede ser que estemos en el día exacto)
+    const nextRecategorization = futurePeriods.length > 0 ? futurePeriods[0] : periods[periods.length - 1];
+    
+    console.log(`[Simulador] Períodos disponibles:`, periods.map(p => ({ name: p.name, deadline: p.deadline.toISOString(), daysRemaining: p.daysRemaining })));
+    console.log(`[Simulador] Períodos futuros:`, futurePeriods.map(p => ({ name: p.name, deadline: p.deadline.toISOString() })));
+    console.log(`[Simulador] Próxima recategorización seleccionada:`, nextRecategorization.name);
     
     // Calcular meses hasta la próxima recategorización
     const nextRecatDate = nextRecategorization.deadline;
