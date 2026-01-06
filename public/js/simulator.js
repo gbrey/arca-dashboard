@@ -74,6 +74,9 @@ function simulatorApp() {
         return;
       }
       
+      // Guardar selección en localStorage
+      localStorage.setItem('selectedAccountId', this.selectedAccountId);
+      
       this.loading = true;
       
       try {

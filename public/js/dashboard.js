@@ -61,9 +61,16 @@ function dashboardApp() {
           this.accounts = data.accounts || [];
           
           if (this.accounts.length > 0 && !this.selectedAccountId) {
-            // Seleccionar cuenta default si existe, sino la primera
-            const defaultAccount = this.accounts.find(acc => acc.is_default);
-            this.selectedAccountId = defaultAccount ? defaultAccount.id : this.accounts[0].id;
+            // Cargar cuenta guardada en localStorage
+            const savedAccountId = localStorage.getItem('selectedAccountId');
+            if (savedAccountId && this.accounts.find(acc => acc.id === savedAccountId)) {
+              // Usar cuenta guardada si existe
+              this.selectedAccountId = savedAccountId;
+            } else {
+              // Seleccionar cuenta default si existe, sino la primera
+              const defaultAccount = this.accounts.find(acc => acc.is_default);
+              this.selectedAccountId = defaultAccount ? defaultAccount.id : this.accounts[0].id;
+            }
             await this.loadDashboard();
           }
         }
@@ -74,6 +81,9 @@ function dashboardApp() {
     
     async loadDashboard() {
       if (!this.selectedAccountId) return;
+      
+      // Guardar selección en localStorage
+      localStorage.setItem('selectedAccountId', this.selectedAccountId);
       
       this.loading = true;
       
