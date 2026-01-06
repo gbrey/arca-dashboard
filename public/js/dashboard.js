@@ -2,6 +2,7 @@ function dashboardApp() {
   return {
     selectedAccountId: '',
     accounts: [],
+    isAdmin: false,
     invoices: [],
     invoiceLimit: 5,
     limits: {
@@ -43,6 +44,13 @@ function dashboardApp() {
       if (!token) {
         window.location.href = '/login.html';
         return;
+      }
+      
+      // Verificar si es admin
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        this.isAdmin = user.is_admin === true;
       }
       
       await this.loadAccounts();

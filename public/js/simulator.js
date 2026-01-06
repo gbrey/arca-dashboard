@@ -2,6 +2,7 @@ function simulatorApp() {
   return {
     selectedAccountId: '',
     accounts: [],
+    isAdmin: false,
     // Inicializar con estructura vacía para evitar errores de null
     simulation: {
       current: null,
@@ -34,6 +35,13 @@ function simulatorApp() {
       if (!token) {
         window.location.href = '/login.html';
         return;
+      }
+      
+      // Verificar si es admin
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        this.isAdmin = user.is_admin === true;
       }
       
       await this.loadAccounts();

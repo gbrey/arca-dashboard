@@ -2,6 +2,7 @@ function invoicesApp() {
   return {
     selectedAccountId: '',
     accounts: [],
+    isAdmin: false,
     invoices: [],
     filteredInvoices: [],
     searchFilter: '',
@@ -29,6 +30,13 @@ function invoicesApp() {
       if (!token) {
         window.location.href = '/login.html';
         return;
+      }
+      
+      // Verificar si es admin
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        this.isAdmin = user.is_admin === true;
       }
       
       await this.loadAccounts();

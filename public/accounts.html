@@ -28,6 +28,11 @@
             <a href="/simulator.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
               Simulador
             </a>
+            <template x-if="isAdmin">
+              <a href="/admin.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+                Admin
+              </a>
+            </template>
           </div>
         </div>
         <div class="flex items-center">
@@ -296,6 +301,7 @@
         loading: false,
         error: '',
         success: '',
+        isAdmin: false,
         showForm: false,
         newAccount: {
           name: '',
@@ -316,6 +322,13 @@
           if (!token) {
             window.location.href = '/login.html';
             return;
+          }
+          
+          // Verificar si es admin
+          const userStr = localStorage.getItem('user');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            this.isAdmin = user.is_admin === true;
           }
           
           await this.loadAccounts();

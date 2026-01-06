@@ -44,6 +44,11 @@
             <a href="/simulator.html" class="px-3 py-2 rounded-md text-sm font-medium bg-purple-100 text-purple-700">
               Simulador
             </a>
+            <template x-if="isAdmin">
+              <a href="/admin.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+                Admin
+              </a>
+            </template>
           </div>
         </div>
         <div class="flex items-center space-x-4">
