@@ -572,21 +572,24 @@ export async function calculatePeriodSuggestion(env: Env, accountId: string, use
     const year = parseInt(yearStr);
     const month = parseInt(monthStr);
     
-    let periodStart: Date;
-    let periodEnd: Date;
+    let startTimestamp: number;
+    let endTimestamp: number;
+    let periodLabel: string;
     
     if (month === 1) {
       // Enero: evalúa Ene-Dic del año anterior
-      periodStart = new Date(year - 1, 0, 1); // 1 Ene año anterior
-      periodEnd = new Date(year - 1, 11, 31, 23, 59, 59); // 31 Dic año anterior
+      // Usar Date.UTC para evitar problemas de timezone
+      startTimestamp = Math.floor(Date.UTC(year - 1, 0, 1, 0, 0, 0) / 1000);
+      endTimestamp = Math.floor(Date.UTC(year - 1, 11, 31, 23, 59, 59) / 1000);
+      periodLabel = `Ene ${year - 1} → Dic ${year - 1}`;
     } else {
       // Julio: evalúa Jul año anterior a Jun mismo año
-      periodStart = new Date(year - 1, 6, 1); // 1 Jul año anterior
-      periodEnd = new Date(year, 5, 30, 23, 59, 59); // 30 Jun mismo año
+      startTimestamp = Math.floor(Date.UTC(year - 1, 6, 1, 0, 0, 0) / 1000);
+      endTimestamp = Math.floor(Date.UTC(year, 5, 30, 23, 59, 59) / 1000);
+      periodLabel = `Jul ${year - 1} → Jun ${year}`;
     }
     
-    const startTimestamp = Math.floor(periodStart.getTime() / 1000);
-    const endTimestamp = Math.floor(periodEnd.getTime() / 1000);
+    console.log(`[Suggest] Período ${period}: timestamps ${startTimestamp} - ${endTimestamp}`);
     
     // Obtener facturas del período
     const { calcularMontoAjustado } = await import('../utils/comprobantes');
@@ -596,6 +599,8 @@ export async function calculatePeriodSuggestion(env: Env, accountId: string, use
       WHERE arca_account_id = ? AND date >= ? AND date <= ?
       ORDER BY date ASC
     `).bind(accountId, startTimestamp, endTimestamp).all<{ amount: number; date: number; cached_data: string | null }>();
+    
+    console.log(`[Suggest] Encontradas ${invoices.results.length} facturas para el período`);
     
     // Calcular total del período
     let totalBilled = 0;
@@ -622,21 +627,17 @@ export async function calculatePeriodSuggestion(env: Env, accountId: string, use
     totalBilled = Math.max(0, Math.round(totalBilled));
     
     // Obtener los límites vigentes para ese período
-    const limits = await getLimitsForDate(env, periodEnd);
+    const periodEndDate = new Date(endTimestamp * 1000);
+    const limits = await getLimitsForDate(env, periodEndDate);
     
     // Determinar categoría sugerida
     const suggestedCategory = getCategoryForAmount(totalBilled);
     
-    // Formatear período para mostrar
-    const periodLabel = month === 1 
-      ? `Ene ${year - 1} → Dic ${year - 1}`
-      : `Jul ${year - 1} → Jun ${year}`;
-    
     return new Response(JSON.stringify({
       period,
       periodLabel,
-      periodStart: periodStart.toISOString(),
-      periodEnd: periodEnd.toISOString(),
+      periodStart: new Date(startTimestamp * 1000).toISOString(),
+      periodEnd: periodEndDate.toISOString(),
       totalBilled,
       suggestedCategory,
       categoryLimit: limits[suggestedCategory] || MONOTRIBUTO_LIMITS[suggestedCategory],
