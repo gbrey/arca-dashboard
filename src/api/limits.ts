@@ -548,10 +548,13 @@ export async function simulateScenarios(env: Env, accountId: string, userId: str
       const projections = [];
       let runningTotal = totalBilled;
       
+      console.log(`[generateProjections ${scenarioName}] Generando ${monthsToSimulate} proyecciones desde ${currentMonth.toISOString()}`);
+      
       // Simular desde el mes actual hasta la próxima recategorización
       for (let i = 0; i < monthsToSimulate; i++) {
         const projectionDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + i, 1);
         const projectionKey = `${projectionDate.getFullYear()}-${String(projectionDate.getMonth() + 1).padStart(2, '0')}`;
+        console.log(`[generateProjections ${scenarioName}] Mes ${i + 1}/${monthsToSimulate}: ${projectionKey}`);
         
         // El mes que "sale" de la ventana es el de hace 12 meses desde la proyección
         const exitingDate = new Date(projectionDate.getFullYear(), projectionDate.getMonth() - 12, 1);
