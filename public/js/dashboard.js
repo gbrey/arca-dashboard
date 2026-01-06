@@ -17,9 +17,8 @@ function dashboardApp() {
       billing_update_date: null,
       billed_amount: null
     },
+    recatData: null,
     loading: false,
-    syncing: false,
-    syncingMonotributo: false,
     revenueChart: null,
     
     async init() {
@@ -104,7 +103,21 @@ function dashboardApp() {
         } else {
           const errorData = await limitsResponse.json().catch(() => ({}));
           console.error('Error al cargar límites:', errorData);
-          // Mantener valores por defecto si falla
+        }
+        
+        // Cargar datos de recategorización (categoría actual y proyección)
+        const recatResponse = await fetch(`/api/recategorization?account_id=${this.selectedAccountId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (recatResponse.ok) {
+          this.recatData = await recatResponse.json();
+          console.log('Recategorización cargada:', this.recatData);
+        } else {
+          console.error('Error al cargar recategorización');
+          this.recatData = null;
         }
         
         // Cargar datos para gráfico
@@ -261,68 +274,6 @@ function dashboardApp() {
         style: 'currency',
         currency: 'ARS'
       }).format(amount || 0);
-    },
-    
-    async syncInvoices() {
-      if (!this.selectedAccountId) return;
-      
-      this.syncing = true;
-      try {
-        const response = await fetch('/api/invoices/sync', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({
-            account_id: this.selectedAccountId
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-          alert(`✅ ${data.message || 'Facturas sincronizadas correctamente'}`);
-          // Recargar dashboard
-          await this.loadDashboard();
-        } else {
-          alert(`❌ Error: ${data.error || 'Error al sincronizar facturas'}`);
-        }
-      } catch (error) {
-        console.error('Error al sincronizar:', error);
-        alert('❌ Error de conexión al sincronizar');
-      } finally {
-        this.syncing = false;
-      }
-    },
-    
-    async syncMonotributo() {
-      if (!this.selectedAccountId) return;
-      
-      this.syncingMonotributo = true;
-      try {
-        const response = await fetch(`/api/limits/sync?account_id=${this.selectedAccountId}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-          alert(`✅ Información de monotributo sincronizada correctamente\n\nCategoría: ${data.category}\nPróximo pago: ${this.formatCurrency(data.next_due_amount)}`);
-          // Recargar límites
-          await this.loadDashboard();
-        } else {
-          alert(`❌ Error: ${data.error || 'Error al sincronizar información de monotributo'}`);
-        }
-      } catch (error) {
-        console.error('Error al sincronizar monotributo:', error);
-        alert('❌ Error de conexión al sincronizar');
-      } finally {
-        this.syncingMonotributo = false;
-      }
     },
     
     formatDate(timestamp) {
