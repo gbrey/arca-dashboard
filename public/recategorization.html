@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recategorización - ARCA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .gradient-header {
+      background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+    }
+    .timeline-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 0 0 2px currentColor;
+    }
+    .timeline-line {
+      height: 3px;
+      background: linear-gradient(90deg, #e5e7eb 0%, #6366f1 50%, #e5e7eb 100%);
+    }
+    .category-badge {
+      font-size: 2.5rem;
+      font-weight: 800;
+      width: 80px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+    }
+    .trend-up { color: #ef4444; }
+    .trend-down { color: #22c55e; }
+    .trend-same { color: #6366f1; }
+    .card-hover {
+      transition: all 0.3s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen" x-data="recategorizationApp()" x-init="init()">
+  <!-- Navbar -->
+  <nav class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center space-x-8">
+          <h1 class="text-xl font-bold text-gray-800">ARCA</h1>
+          <div class="hidden md:flex items-center space-x-1">
+            <a href="/index.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Dashboard
+            </a>
+            <a href="/invoices.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Facturas
+            </a>
+            <a href="/accounts.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Cuentas
+            </a>
+            <a href="/simulator.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              Simulador
+            </a>
+            <a href="/recategorization.html" class="px-3 py-2 rounded-md text-sm font-medium bg-indigo-100 text-indigo-700">
+              Recategorización
+            </a>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <select x-model="selectedAccountId" @change="loadData()" class="border rounded px-3 py-1 text-sm">
+            <option value="">Seleccionar cuenta</option>
+            <template x-for="account in accounts" :key="account.id">
+              <option :value="account.id" x-text="(account.is_default ? '⭐ ' : '') + account.name"></option>
+            </template>
+          </select>
+          <button @click="logout()" class="text-gray-600 hover:text-gray-800 text-sm">Salir</button>
+        </div>
+      </div>
+      <!-- Menú móvil -->
+      <div class="md:hidden border-t pt-2 pb-2">
+        <div class="flex flex-wrap gap-1">
+          <a href="/index.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">Dashboard</a>
+          <a href="/invoices.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">Facturas</a>
+          <a href="/simulator.html" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">Simulador</a>
+          <a href="/recategorization.html" class="px-3 py-2 rounded-md text-sm font-medium bg-indigo-100 text-indigo-700">Recat.</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header -->
+  <div class="gradient-header text-white py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <h1 class="text-3xl font-bold mb-2">Recategorización</h1>
+      <p class="text-indigo-200">Proyectá tu categoría en las próximas recategorizaciones de AFIP</p>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 -mt-4">
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
+      <p class="mt-4 text-gray-600">Cargando datos...</p>
+    </div>
+
+    <!-- No Account Selected -->
+    <div x-show="!loading && !selectedAccountId" class="bg-white rounded-xl shadow-lg p-8 text-center">
+      <div class="text-6xl mb-4">📅</div>
+      <h2 class="text-xl font-semibold text-gray-800 mb-2">Selecciona una cuenta</h2>
+      <p class="text-gray-600">Elige una cuenta ARCA del selector arriba para ver la información de recategorización.</p>
+    </div>
+
+    <!-- Content -->
+    <div x-show="!loading && selectedAccountId && data" class="space-y-6">
+      
+      <!-- Próxima Recategorización - Card Principal -->
+      <div class="bg-white rounded-2xl shadow-xl overflow-hidden card-hover">
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4">
+          <div class="flex justify-between items-center">
+            <div>
+              <h2 class="text-xl font-bold">Próxima Recategorización</h2>
+              <p class="text-indigo-200" x-text="data.nextRecategorization?.name"></p>
+            </div>
+            <div class="text-right">
+              <p class="text-3xl font-bold" x-text="data.nextRecategorization?.daysRemaining + ' días'"></p>
+              <p class="text-indigo-200 text-sm">restantes</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="p-6">
+          <p class="text-sm text-gray-500 mb-4">
+            Período evaluado: <span class="font-medium text-gray-700" x-text="data.nextRecategorization?.periodLabel"></span>
+          </p>
+          
+          <!-- Categorías -->
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <!-- Categoría Actual -->
+            <div class="text-center">
+              <p class="text-sm text-gray-500 mb-2">Categoría Actual</p>
+              <div class="category-badge bg-indigo-100 text-indigo-700 mx-auto" x-text="data.currentCategory"></div>
+              <p class="text-xs text-gray-400 mt-2">Límite: <span x-text="formatCurrencyShort(data.currentCategoryInfo?.limit)"></span></p>
+            </div>
+            
+            <!-- Flecha -->
+            <div class="flex items-center justify-center">
+              <div class="text-4xl" :class="getTrendClass(data.nextRecategorization?.trend)">
+                <span x-show="data.nextRecategorization?.trend === 'up'">↗️</span>
+                <span x-show="data.nextRecategorization?.trend === 'down'">↘️</span>
+                <span x-show="data.nextRecategorization?.trend === 'same'">→</span>
+              </div>
+            </div>
+            
+            <!-- Categoría Proyectada -->
+            <div class="text-center">
+              <p class="text-sm text-gray-500 mb-2">Proyectada</p>
+              <div class="category-badge mx-auto"
+                   :class="data.nextRecategorization?.trend === 'up' ? 'bg-red-100 text-red-700' : 
+                           data.nextRecategorization?.trend === 'down' ? 'bg-green-100 text-green-700' : 
+                           'bg-indigo-100 text-indigo-700'"
+                   x-text="data.nextRecategorization?.projectedCategory"></div>
+              <p class="text-xs text-gray-400 mt-2">Límite: <span x-text="formatCurrencyShort(data.nextRecategorization?.projectedCategoryLimit)"></span></p>
+            </div>
+          </div>
+          
+          <!-- Barra de Progreso -->
+          <div class="mb-6">
+            <div class="flex justify-between text-sm mb-2">
+              <span class="text-gray-600">Total del período</span>
+              <span class="font-medium" x-text="formatCurrency(data.nextRecategorization?.currentTotal) + ' / ' + formatCurrency(data.nextRecategorization?.currentCategoryLimit)"></span>
+            </div>
+            <div class="h-4 bg-gray-200 rounded-full overflow-hidden">
+              <div class="h-full rounded-full transition-all duration-500"
+                   :class="data.nextRecategorization?.percentageUsed >= 100 ? 'bg-red-500' : 
+                           data.nextRecategorization?.percentageUsed >= 80 ? 'bg-yellow-500' : 'bg-indigo-500'"
+                   :style="'width: ' + Math.min(data.nextRecategorization?.percentageUsed || 0, 100) + '%'"></div>
+            </div>
+            <p class="text-right text-sm text-gray-500 mt-1" x-text="(data.nextRecategorization?.percentageUsed || 0).toFixed(1) + '% utilizado'"></p>
+          </div>
+          
+          <!-- Consejos -->
+          <div class="space-y-2">
+            <template x-for="(tip, idx) in data.advice || []" :key="idx">
+              <div class="p-3 rounded-lg"
+                   :class="tip.startsWith('⚠️') ? 'bg-yellow-50 text-yellow-800' : 
+                           tip.startsWith('💡') ? 'bg-blue-50 text-blue-800' :
+                           tip.startsWith('✅') ? 'bg-green-50 text-green-800' :
+                           tip.startsWith('📉') ? 'bg-green-50 text-green-800' :
+                           'bg-gray-50 text-gray-800'"
+                   x-text="tip"></div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-6">Línea de Tiempo</h3>
+        <div class="relative">
+          <!-- Línea -->
+          <div class="absolute top-4 left-0 right-0 h-1 bg-gray-200"></div>
+          
+          <!-- Puntos -->
+          <div class="relative flex justify-between">
+            <template x-for="(item, idx) in data.timeline || []" :key="idx">
+              <div class="flex flex-col items-center" style="min-width: 80px;">
+                <div class="timeline-dot z-10"
+                     :class="item.status === 'past' ? 'bg-gray-400 text-gray-400' : 
+                             item.status === 'next' ? 'bg-indigo-500 text-indigo-500 ring-4 ring-indigo-200' : 
+                             'bg-gray-300 text-gray-300'"></div>
+                <p class="text-xs font-medium mt-2" 
+                   :class="item.status === 'next' ? 'text-indigo-600' : 'text-gray-500'"
+                   x-text="item.label"></p>
+                <p class="text-xs text-gray-400" x-text="item.type === 'january' ? 'Ene' : 'Jul'"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cards de Períodos -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <template x-for="(period, idx) in data.periods || []" :key="period.id">
+          <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+            <div class="px-6 py-4" 
+                 :class="period.id === 'january' ? 'bg-blue-500 text-white' : 'bg-orange-500 text-white'">
+              <div class="flex justify-between items-center">
+                <div>
+                  <h3 class="font-bold text-lg" x-text="period.name"></h3>
+                  <p class="text-sm opacity-80" x-text="period.periodLabel"></p>
+                </div>
+                <div class="text-right">
+                  <p class="text-2xl font-bold" x-text="period.daysRemaining + 'd'"></p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="p-6">
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p class="text-xs text-gray-500">Total actual</p>
+                  <p class="text-lg font-bold text-gray-800" x-text="formatCurrencyShort(period.currentTotal)"></p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500">Proyectado</p>
+                  <p class="text-lg font-bold" 
+                     :class="period.trend === 'up' ? 'text-red-600' : period.trend === 'down' ? 'text-green-600' : 'text-gray-800'"
+                     x-text="formatCurrencyShort(period.projectedTotal)"></p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500">Promedio mensual</p>
+                  <p class="text-lg font-bold text-gray-800" x-text="formatCurrencyShort(period.monthlyAverage)"></p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500">Categoría proyectada</p>
+                  <p class="text-lg font-bold"
+                     :class="period.trend === 'up' ? 'text-red-600' : period.trend === 'down' ? 'text-green-600' : 'text-indigo-600'"
+                     x-text="period.projectedCategory"></p>
+                </div>
+              </div>
+              
+              <div class="pt-4 border-t">
+                <p class="text-sm text-gray-600">
+                  <span x-show="period.trend === 'same'">✅ Te mantenés en categoría</span>
+                  <span x-show="period.trend === 'up'">⚠️ Subirías de categoría</span>
+                  <span x-show="period.trend === 'down'">📉 Bajarías de categoría</span>
+                </p>
+                <p class="text-xs text-gray-500 mt-1" x-show="period.maxMonthlyToStay > 0 && period.monthsRemaining > 0">
+                  Máx. para mantenerte: <span class="font-medium" x-text="formatCurrencyShort(period.maxMonthlyToStay)"></span>/mes
+                </p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Simulador Simple -->
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Simulador Rápido</h3>
+        <div class="flex flex-wrap gap-4 items-end">
+          <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm text-gray-600 mb-1">Si facturo por mes:</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+              <input type="number" 
+                     x-model.number="simulatorAmount"
+                     @input="runSimulation()"
+                     class="w-full pl-8 pr-4 py-2 border rounded-lg"
+                     placeholder="Monto mensual">
+            </div>
+          </div>
+          <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm text-gray-600 mb-1">Hasta:</label>
+            <select x-model="simulatorPeriod" @change="runSimulation()" class="w-full py-2 px-3 border rounded-lg">
+              <template x-for="period in data?.periods || []" :key="period.id">
+                <option :value="period.id" x-text="period.name"></option>
+              </template>
+            </select>
+          </div>
+          <div class="flex-1 min-w-[250px]" x-show="simulatorResult">
+            <div class="p-3 rounded-lg"
+                 :class="simulatorResult?.trend === 'up' ? 'bg-red-50 border border-red-200' : 
+                         simulatorResult?.trend === 'down' ? 'bg-green-50 border border-green-200' : 
+                         'bg-indigo-50 border border-indigo-200'">
+              <p class="font-medium"
+                 :class="simulatorResult?.trend === 'up' ? 'text-red-700' : 
+                         simulatorResult?.trend === 'down' ? 'text-green-700' : 'text-indigo-700'">
+                Resultado: Categoría <span x-text="simulatorResult?.category"></span>
+              </p>
+              <p class="text-sm text-gray-600">
+                Total: <span x-text="formatCurrencyShort(simulatorResult?.total)"></span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Referencia de Categorías -->
+      <div class="bg-white rounded-xl shadow-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Referencia de Categorías</h3>
+        <div class="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-11 gap-2">
+          <template x-for="(limit, cat) in data?.allCategories || {}" :key="cat">
+            <div class="p-2 rounded-lg text-center"
+                 :class="cat === data.currentCategory ? 'bg-indigo-100 border-2 border-indigo-500' : 'bg-gray-50'">
+              <p class="text-lg font-bold" :class="cat === data.currentCategory ? 'text-indigo-600' : 'text-gray-700'" x-text="cat"></p>
+              <p class="text-xs text-gray-500" x-text="formatCurrencyShort(limit)"></p>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/recategorization.js"></script>
+</body>
+</html>
+

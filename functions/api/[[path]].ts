@@ -2,6 +2,7 @@ import { Env } from '../../src/utils/db';
 import { registerUser, loginUser, getAuthUser } from '../../src/api/auth';
 import { handleInvoices } from '../../src/api/invoices';
 import { handleLimits } from '../../src/api/limits';
+import { handleRecategorization } from '../../src/api/recategorization';
 import { getArcaAccounts, connectArcaAccount, getArcaAccount, updateArcaAccount, setDefaultAccount } from '../../src/api/accounts';
 import { getProductionCertificate, registerCuitInAfipSdk } from '../../src/api/certificates';
 
@@ -42,6 +43,10 @@ export const onRequest = async (context: { request: Request; env: Env }) => {
       // Limits routes
       else if (path.startsWith('/api/limits')) {
         response = await handleLimits(request, env);
+      }
+      // Recategorization routes
+      else if (path.startsWith('/api/recategorization')) {
+        response = await handleRecategorization(request, env);
       }
       // ARCA account routes
       else if (path.startsWith('/api/arca')) {

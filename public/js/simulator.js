@@ -25,6 +25,9 @@ function simulatorApp() {
     // Category limits for client-side calculation
     categoryLimits: {},
     
+    // Debounce timer for chart rendering
+    chartRenderTimeout: null,
+    
     async init() {
       // Verificar autenticación
       const token = localStorage.getItem('token');
@@ -183,10 +186,17 @@ function simulatorApp() {
       };
       
       // Update chart with new custom data (solo si no es la carga inicial)
+      // Usar debounce para evitar recrear el gráfico muchas veces seguidas
       if (shouldRenderChart) {
-        this.$nextTick(() => {
+        console.log('calculateCustomScenario: scheduling chart render');
+        if (this.chartRenderTimeout) {
+          console.log('calculateCustomScenario: clearing previous timeout');
+          clearTimeout(this.chartRenderTimeout);
+        }
+        this.chartRenderTimeout = setTimeout(() => {
+          console.log('calculateCustomScenario: timeout fired, calling renderChart');
           this.renderChart();
-        });
+        }, 300); // Aumentar a 300ms
       }
     },
     
@@ -203,17 +213,43 @@ function simulatorApp() {
     },
     
     renderChart() {
-      const ctx = document.getElementById('projectionChart');
-      if (!ctx || !this.simulation || !this.simulation.current) {
-        console.log('Chart not rendered: missing data', { ctx: !!ctx, simulation: !!this.simulation, current: !!this.simulation?.current });
+      console.log('>>> renderChart START');
+      
+      const canvas = document.getElementById('projectionChart');
+      console.log('renderChart: canvas element:', canvas);
+      console.log('renderChart: existing chart:', this.projectionChart);
+      
+      if (!canvas) {
+        console.log('renderChart: NO CANVAS ELEMENT');
+        return;
+      }
+      
+      if (!this.simulation || !this.simulation.current) {
+        console.log('renderChart: missing simulation data');
         return;
       }
       
       // Destruir gráfico anterior si existe
       if (this.projectionChart) {
-        this.projectionChart.destroy();
+        console.log('renderChart: stopping and destroying existing chart...');
+        try {
+          // Detener animaciones primero para evitar requestAnimationFrame huérfanos
+          this.projectionChart.stop();
+          this.projectionChart.destroy();
+          console.log('renderChart: chart stopped and destroyed successfully');
+        } catch (e) {
+          console.log('renderChart: Error destroying chart:', e);
+        }
         this.projectionChart = null;
       }
+      
+      // Verificar que el canvas tenga contexto válido
+      if (!canvas.getContext) {
+        console.log('renderChart: Canvas element is invalid (no getContext)');
+        return;
+      }
+      
+      console.log('renderChart: canvas is valid, proceeding...');
       
       const scenarios = this.simulation.scenarios;
       const currentLimit = this.simulation.current?.limit || 0;
@@ -247,86 +283,94 @@ function simulatorApp() {
       // Helper to get data or fallback
       const getProjectionData = (projections, key = 'total') => {
         if (!projections || projections.length === 0) {
+          console.log(`getProjectionData: no projections, returning fallback`);
           return Array(numPoints).fill(currentTotal);
         }
-        return projections.map(p => p[key]);
+        const result = projections.map(p => p[key]);
+        console.log(`getProjectionData(key=${key}):`, JSON.stringify(result));
+        return result;
       };
       
-      // Datasets
+      // Datasets - ordenados para que no se tapen entre sí
+      // Las líneas sin fill primero, luego la línea con fill al final
       const datasets = [
         {
-          label: 'Personalizado',
-          data: customData,
-          borderColor: 'rgb(236, 72, 153)',
-          backgroundColor: 'rgba(236, 72, 153, 0.15)',
-          tension: 0.3,
-          fill: true,
-          borderWidth: 3,
-          pointRadius: 5,
-          pointBackgroundColor: 'rgb(236, 72, 153)'
+          label: 'Límite categoría actual',
+          data: Array(numPoints).fill(currentLimit),
+          borderColor: 'rgba(239, 68, 68, 0.8)',
+          backgroundColor: 'transparent',
+          borderDash: [10, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          order: 6
         },
         {
           label: 'Conservador',
           data: getProjectionData(scenarios?.conservative?.projections),
           borderColor: 'rgb(16, 185, 129)',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          backgroundColor: 'transparent',
           tension: 0.3,
           fill: false,
-          borderWidth: 2
+          borderWidth: 3,
+          pointRadius: 5,
+          order: 5
         },
         {
           label: 'Normal',
           data: getProjectionData(scenarios?.normal?.projections),
           borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          backgroundColor: 'transparent',
           tension: 0.3,
           fill: false,
-          borderWidth: 2
+          borderWidth: 3,
+          pointRadius: 5,
+          order: 4
         },
         {
           label: 'Agresivo',
           data: getProjectionData(scenarios?.aggressive?.projections),
           borderColor: 'rgb(249, 115, 22)',
-          backgroundColor: 'rgba(249, 115, 22, 0.1)',
+          backgroundColor: 'transparent',
           tension: 0.3,
           fill: false,
-          borderWidth: 2
+          borderWidth: 3,
+          pointRadius: 5,
+          order: 3
         },
         {
           label: 'Máximo',
           data: getProjectionData(scenarios?.maximum?.projections, 'total_if_max'),
           borderColor: 'rgb(147, 51, 234)',
-          backgroundColor: 'rgba(147, 51, 234, 0.1)',
+          backgroundColor: 'transparent',
           tension: 0.3,
           fill: false,
           borderDash: [5, 5],
-          borderWidth: 2
+          borderWidth: 3,
+          pointRadius: 5,
+          order: 2
         },
         {
-          label: 'Límite categoría actual',
-          data: Array(numPoints).fill(currentLimit),
-          borderColor: 'rgba(239, 68, 68, 0.7)',
-          backgroundColor: 'transparent',
-          borderDash: [10, 5],
-          borderWidth: 2,
-          pointRadius: 0,
-          fill: false
+          label: 'Personalizado',
+          data: customData,
+          borderColor: 'rgb(236, 72, 153)',
+          backgroundColor: 'rgba(236, 72, 153, 0.1)',
+          tension: 0.3,
+          fill: true,
+          borderWidth: 3,
+          pointRadius: 6,
+          pointBackgroundColor: 'rgb(236, 72, 153)',
+          order: 1
         }
       ];
       
-      console.log('Chart data:', { 
-        labels, 
-        datasets: datasets.map(d => ({ 
-          label: d.label, 
-          data: d.data,
-          dataValues: JSON.stringify(d.data)
-        })) 
-      });
-      console.log('Scenarios raw:', {
-        conservative: scenarios?.conservative?.projections?.map(p => p.total),
-        normal: scenarios?.normal?.projections?.map(p => p.total),
-        aggressive: scenarios?.aggressive?.projections?.map(p => p.total),
-        maximum: scenarios?.maximum?.projections?.map(p => p.total_if_max)
+      // Debug: log cada dataset individualmente con valores exactos
+      console.log('=== CHART DEBUG ===');
+      console.log('Labels:', JSON.stringify(labels));
+      console.log('currentLimit:', currentLimit);
+      console.log('currentTotal:', currentTotal);
+      datasets.forEach((d, i) => {
+        console.log(`Dataset ${i} [${d.label}]: data=${JSON.stringify(d.data)}, color=${d.borderColor}`);
       });
       
       // Calcular min y max de todos los datasets para escala Y correcta
@@ -335,10 +379,10 @@ function simulatorApp() {
       const maxValue = Math.max(...allValues);
       const padding = (maxValue - minValue) * 0.1; // 10% padding
       
-      console.log('Y-axis range:', { minValue, maxValue, padding });
+      console.log(`Y-axis: min=${minValue}, max=${maxValue}, padding=${padding}`);
       
       try {
-        this.projectionChart = new Chart(ctx, {
+        this.projectionChart = new Chart(canvas, {
           type: 'line',
           data: {
             labels: labels,
@@ -347,13 +391,19 @@ function simulatorApp() {
           options: {
             responsive: true,
             maintainAspectRatio: true,
+            animation: false, // Desactivar animaciones para evitar errores al actualizar
             interaction: {
               intersect: false,
               mode: 'index'
             },
             plugins: {
               legend: {
-                display: false
+                display: true,
+                position: 'bottom',
+                labels: {
+                  usePointStyle: true,
+                  padding: 15
+                }
               },
               tooltip: {
                 callbacks: {
@@ -366,8 +416,7 @@ function simulatorApp() {
             scales: {
               y: {
                 beginAtZero: false,
-                min: minValue - padding,
-                max: maxValue + padding,
+                // Dejar que Chart.js calcule el rango automáticamente
                 ticks: {
                   callback: (value) => {
                     return this.formatCurrencyShort(value);
@@ -377,9 +426,11 @@ function simulatorApp() {
             }
           }
         });
-        console.log('Chart created successfully');
+        console.log('>>> renderChart END - Chart created successfully');
+        console.log('>>> Chart instance:', this.projectionChart);
       } catch (error) {
-        console.error('Error creating chart:', error);
+        console.error('>>> renderChart ERROR:', error);
+        console.error('>>> Error stack:', error.stack);
       }
     },
     
