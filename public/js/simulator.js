@@ -114,16 +114,23 @@ function simulatorApp() {
     },
     
     initializeCustomMonths() {
-      if (!this.simulation?.scenarios?.maximum?.projections) return;
+      if (!this.simulation?.scenarios?.maximum?.projections) {
+        console.log('[CustomMonths] No hay proyecciones maximum disponibles');
+        return;
+      }
       
       const maxProjections = this.simulation.scenarios.maximum.projections;
       const avgMonthly = this.simulation.current?.monthly_average || 0;
+      
+      console.log(`[CustomMonths] Inicializando ${maxProjections.length} meses desde maximum projections`);
       
       this.customMonths = maxProjections.map(proj => ({
         key: proj.month,
         amount: Math.round(avgMonthly), // Pre-fill with average
         exiting: proj.exiting_amount
       }));
+      
+      console.log('[CustomMonths] Custom months inicializados:', this.customMonths);
       
       // Calculate initial custom scenario (sin renderizar gráfico, se hace después)
       this.calculateCustomScenario(false);
