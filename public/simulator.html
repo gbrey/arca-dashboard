@@ -174,6 +174,9 @@
           Cada mes, el monto del mes 13 atrás "sale" de la ventana. 
           Por ejemplo, si en enero 2025 facturaste $5M, ese monto deja de contar cuando llegue febrero 2026.
         </p>
+        <p class="text-sm text-purple-100 mt-2" x-show="simulation.current?.months_to_recategorization">
+          <strong>Estás simulando <span x-text="simulation.current?.months_to_recategorization"></span> <span x-text="simulation.current?.months_to_recategorization === 1 ? 'mes' : 'meses'"></span></strong> hasta la próxima recategorización (<span x-text="simulation.current?.next_recategorization"></span>).
+        </p>
       </div>
 
       <!-- Custom Scenario -->
