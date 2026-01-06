@@ -673,7 +673,7 @@ export async function calculatePeriodSuggestion(env: Env, accountId: string, use
       period,
       periodLabel,
       periodStart: new Date(startTimestamp * 1000).toISOString(),
-      periodEnd: periodEndDate.toISOString(),
+      periodEnd: new Date(endTimestamp * 1000).toISOString(),
       totalBilled,
       suggestedCategory,
       categoryLimit: limits[suggestedCategory] || 0,
