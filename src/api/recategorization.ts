@@ -191,7 +191,10 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       // Los límites del mes de recategorización (Enero o Julio) estarán vigentes por los próximos 6 meses
       // Enero: límites vigentes desde el 1 de Enero
       // Julio: límites vigentes desde el 1 de Julio
-      const recategorizationMonthStart = new Date(period.deadline.getFullYear(), period.deadline.getMonth(), 1);
+      // Usar Date.UTC para evitar problemas de zona horaria
+      const recategorizationYear = period.deadline.getFullYear();
+      const recategorizationMonth = period.deadline.getMonth(); // 0-indexed (0=Enero, 6=Julio)
+      const recategorizationMonthStart = new Date(Date.UTC(recategorizationYear, recategorizationMonth, 1, 0, 0, 0));
       const limitsForPeriod = await getLimitsForDate(env, recategorizationMonthStart);
       console.log(`[Recategorization] Period ${period.name}, recategorizationMonthStart: ${recategorizationMonthStart.toISOString()}, limits keys: ${Object.keys(limitsForPeriod).join(', ')}`);
       
