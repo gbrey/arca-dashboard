@@ -10,6 +10,42 @@ function recategorizationApp() {
     simulatorPeriod: 'january',
     simulatorResult: null,
     
+    // Historial de categorías
+    categoryHistory: [],
+    showHistoryForm: false,
+    historyError: '',
+    newHistory: {
+      period: '',
+      category: '',
+      total_billed: null,
+      notes: ''
+    },
+    
+    // Historial de límites
+    limitsHistory: [],
+    showLimitsForm: false,
+    limitsError: '',
+    newLimits: {
+      period: '',
+      valid_from: '',
+      limits: {
+        A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0, H: 0, I: 0, J: 0, K: 0
+      }
+    },
+    
+    // Períodos disponibles para seleccionar (últimos 3 años y próximo)
+    get availablePeriods() {
+      const periods = [];
+      const currentYear = new Date().getFullYear();
+      
+      for (let year = currentYear + 1; year >= currentYear - 3; year--) {
+        periods.push({ value: `${year}-07`, label: `Julio ${year}` });
+        periods.push({ value: `${year}-01`, label: `Enero ${year}` });
+      }
+      
+      return periods;
+    },
+    
     async init() {
       // Verificar autenticación
       const token = localStorage.getItem('token');
@@ -19,6 +55,7 @@ function recategorizationApp() {
       }
       
       await this.loadAccounts();
+      await this.loadLimitsHistory();
       
       // Cargar cuenta guardada
       const savedAccountId = localStorage.getItem('selectedAccountId');
@@ -55,6 +92,7 @@ function recategorizationApp() {
     async loadData() {
       if (!this.selectedAccountId) {
         this.data = null;
+        this.categoryHistory = [];
         return;
       }
       
@@ -64,6 +102,7 @@ function recategorizationApp() {
       localStorage.setItem('selectedAccountId', this.selectedAccountId);
       
       try {
+        // Cargar datos de recategorización
         const response = await fetch(`/api/recategorization?account_id=${this.selectedAccountId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -83,11 +122,129 @@ function recategorizationApp() {
           const error = await response.json();
           console.error('Error loading data:', error);
         }
+        
+        // Cargar historial de categorías
+        await this.loadCategoryHistory();
+        
       } catch (error) {
         console.error('Error loading recategorization data:', error);
       }
       
       this.loading = false;
+    },
+    
+    async loadCategoryHistory() {
+      try {
+        const response = await fetch(`/api/recategorization/history?account_id=${this.selectedAccountId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.categoryHistory = data.history || [];
+        }
+      } catch (error) {
+        console.error('Error loading category history:', error);
+      }
+    },
+    
+    async loadLimitsHistory() {
+      try {
+        const response = await fetch('/api/recategorization/limits', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.limitsHistory = data.history || [];
+        }
+      } catch (error) {
+        console.error('Error loading limits history:', error);
+      }
+    },
+    
+    async saveHistory() {
+      this.historyError = '';
+      
+      if (!this.newHistory.period || !this.newHistory.category) {
+        this.historyError = 'Período y categoría son requeridos';
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/recategorization/history?account_id=${this.selectedAccountId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(this.newHistory)
+        });
+        
+        if (response.ok) {
+          await this.loadCategoryHistory();
+          this.showHistoryForm = false;
+          this.newHistory = { period: '', category: '', total_billed: null, notes: '' };
+        } else {
+          const error = await response.json();
+          this.historyError = error.error || 'Error al guardar';
+        }
+      } catch (error) {
+        this.historyError = 'Error de conexión';
+      }
+    },
+    
+    async saveLimits() {
+      this.limitsError = '';
+      
+      if (!this.newLimits.period || !this.newLimits.valid_from) {
+        this.limitsError = 'Período y fecha de vigencia son requeridos';
+        return;
+      }
+      
+      // Validar que todos los límites estén completos
+      for (const cat of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']) {
+        if (!this.newLimits.limits[cat] || this.newLimits.limits[cat] <= 0) {
+          this.limitsError = `Límite para categoría ${cat} es requerido`;
+          return;
+        }
+      }
+      
+      try {
+        const response = await fetch('/api/recategorization/limits', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(this.newLimits)
+        });
+        
+        if (response.ok) {
+          await this.loadLimitsHistory();
+          this.showLimitsForm = false;
+          this.newLimits = {
+            period: '',
+            valid_from: '',
+            limits: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0, H: 0, I: 0, J: 0, K: 0 }
+          };
+        } else {
+          const error = await response.json();
+          this.limitsError = error.error || 'Error al guardar';
+        }
+      } catch (error) {
+        this.limitsError = 'Error de conexión';
+      }
+    },
+    
+    copyCurrentLimits() {
+      if (this.data && this.data.allCategories) {
+        this.newLimits.limits = { ...this.data.allCategories };
+      }
     },
     
     runSimulation() {
@@ -144,6 +301,29 @@ function recategorizationApp() {
       return 'trend-same';
     },
     
+    formatPeriod(period) {
+      if (!period) return '';
+      const [year, month] = period.split('-');
+      return month === '01' ? `Enero ${year}` : `Julio ${year}`;
+    },
+    
+    getCategoryColor(category) {
+      const colors = {
+        'A': 'bg-green-100 text-green-800',
+        'B': 'bg-green-100 text-green-800',
+        'C': 'bg-emerald-100 text-emerald-800',
+        'D': 'bg-teal-100 text-teal-800',
+        'E': 'bg-cyan-100 text-cyan-800',
+        'F': 'bg-sky-100 text-sky-800',
+        'G': 'bg-blue-100 text-blue-800',
+        'H': 'bg-indigo-100 text-indigo-800',
+        'I': 'bg-violet-100 text-violet-800',
+        'J': 'bg-purple-100 text-purple-800',
+        'K': 'bg-fuchsia-100 text-fuchsia-800'
+      };
+      return colors[category] || 'bg-gray-100 text-gray-800';
+    },
+    
     formatCurrency(amount) {
       if (!amount) return '$0';
       return new Intl.NumberFormat('es-AR', {
@@ -172,4 +352,3 @@ function recategorizationApp() {
     }
   };
 }
-

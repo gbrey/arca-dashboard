@@ -325,7 +325,245 @@ function generateAdvice(period: any, categoryInfo: any): string[] {
   return advice;
 }
 
+// =====================================================
+// HISTORIAL DE CATEGORÍAS
+// =====================================================
+
+export async function getCategoryHistory(env: Env, accountId: string, userId: string): Promise<Response> {
+  try {
+    // Verificar que la cuenta pertenece al usuario
+    const account = await env.DB.prepare(
+      'SELECT id FROM arca_accounts WHERE id = ? AND user_id = ?'
+    ).bind(accountId, userId).first();
+    
+    if (!account) {
+      return new Response(JSON.stringify({ error: 'Cuenta no encontrada' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const history = await env.DB.prepare(`
+      SELECT * FROM category_history 
+      WHERE arca_account_id = ? 
+      ORDER BY period DESC
+    `).bind(accountId).all();
+    
+    return new Response(JSON.stringify({ history: history.results || [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+export async function saveCategoryHistory(env: Env, accountId: string, userId: string, data: any): Promise<Response> {
+  try {
+    // Verificar que la cuenta pertenece al usuario
+    const account = await env.DB.prepare(
+      'SELECT id FROM arca_accounts WHERE id = ? AND user_id = ?'
+    ).bind(accountId, userId).first();
+    
+    if (!account) {
+      return new Response(JSON.stringify({ error: 'Cuenta no encontrada' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const { period, category, total_billed, notes } = data;
+    
+    if (!period || !category) {
+      return new Response(JSON.stringify({ error: 'period y category son requeridos' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Validar formato del período (YYYY-MM donde MM es 01 o 07)
+    if (!/^\d{4}-(01|07)$/.test(period)) {
+      return new Response(JSON.stringify({ error: 'Formato de período inválido. Usar YYYY-01 o YYYY-07' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Validar categoría
+    const validCategories = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
+    if (!validCategories.includes(category.toUpperCase())) {
+      return new Response(JSON.stringify({ error: 'Categoría inválida' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const id = crypto.randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Upsert: insertar o actualizar si ya existe
+    await env.DB.prepare(`
+      INSERT INTO category_history (id, arca_account_id, period, category, total_billed, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(arca_account_id, period) DO UPDATE SET
+        category = excluded.category,
+        total_billed = excluded.total_billed,
+        notes = excluded.notes,
+        updated_at = excluded.updated_at
+    `).bind(id, accountId, period, category.toUpperCase(), total_billed || null, notes || null, now, now).run();
+    
+    return new Response(JSON.stringify({ success: true, period, category: category.toUpperCase() }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// =====================================================
+// HISTORIAL DE LÍMITES DEL MONOTRIBUTO
+// =====================================================
+
+export async function getLimitsHistory(env: Env): Promise<Response> {
+  try {
+    const history = await env.DB.prepare(`
+      SELECT * FROM monotributo_limits_history 
+      ORDER BY valid_from DESC
+    `).all();
+    
+    // Parsear el JSON de límites
+    const results = (history.results || []).map((item: any) => ({
+      ...item,
+      limits: JSON.parse(item.limits_json || '{}')
+    }));
+    
+    return new Response(JSON.stringify({ history: results }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+export async function saveLimitsHistory(env: Env, data: any): Promise<Response> {
+  try {
+    const { period, valid_from, limits, source, notes } = data;
+    
+    if (!period || !valid_from || !limits) {
+      return new Response(JSON.stringify({ error: 'period, valid_from y limits son requeridos' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Validar formato del período
+    if (!/^\d{4}-(01|07)$/.test(period)) {
+      return new Response(JSON.stringify({ error: 'Formato de período inválido. Usar YYYY-01 o YYYY-07' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Validar que limits tiene las categorías esperadas
+    const requiredCategories = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
+    for (const cat of requiredCategories) {
+      if (typeof limits[cat] !== 'number') {
+        return new Response(JSON.stringify({ error: `Límite para categoría ${cat} es requerido` }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    
+    const id = crypto.randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+    const validFromTimestamp = typeof valid_from === 'number' ? valid_from : Math.floor(new Date(valid_from).getTime() / 1000);
+    
+    // Upsert
+    await env.DB.prepare(`
+      INSERT INTO monotributo_limits_history (id, period, valid_from, limits_json, source, notes, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(period) DO UPDATE SET
+        valid_from = excluded.valid_from,
+        limits_json = excluded.limits_json,
+        source = excluded.source,
+        notes = excluded.notes
+    `).bind(id, period, validFromTimestamp, JSON.stringify(limits), source || 'manual', notes || null, now).run();
+    
+    return new Response(JSON.stringify({ success: true, period }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// Obtener los límites vigentes para una fecha específica
+export async function getLimitsForDate(env: Env, date: Date): Promise<Record<string, number>> {
+  try {
+    const timestamp = Math.floor(date.getTime() / 1000);
+    
+    const result = await env.DB.prepare(`
+      SELECT limits_json FROM monotributo_limits_history 
+      WHERE valid_from <= ?
+      ORDER BY valid_from DESC
+      LIMIT 1
+    `).bind(timestamp).first<{ limits_json: string }>();
+    
+    if (result) {
+      return JSON.parse(result.limits_json);
+    }
+    
+    // Si no hay historial, usar los límites actuales hardcodeados
+    return MONOTRIBUTO_LIMITS;
+  } catch (error) {
+    console.error('[getLimitsForDate] Error:', error);
+    return MONOTRIBUTO_LIMITS;
+  }
+}
+
+// =====================================================
+// ROUTER PRINCIPAL
+// =====================================================
+
 export async function handleRecategorization(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  
+  // Rutas públicas (límites del monotributo)
+  if (path === '/api/recategorization/limits') {
+    if (request.method === 'GET') {
+      return getLimitsHistory(env);
+    }
+    if (request.method === 'POST') {
+      const userId = await getAuthUser(request, env);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'No autorizado' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      const data = await request.json();
+      return saveLimitsHistory(env, data);
+    }
+  }
+  
+  // El resto de rutas requieren autenticación
   const userId = await getAuthUser(request, env);
   if (!userId) {
     return new Response(JSON.stringify({ error: 'No autorizado' }), {
@@ -334,9 +572,27 @@ export async function handleRecategorization(request: Request, env: Env): Promis
     });
   }
   
-  const url = new URL(request.url);
   const accountId = url.searchParams.get('account_id');
   
+  // Rutas de historial de categorías
+  if (path === '/api/recategorization/history') {
+    if (!accountId) {
+      return new Response(JSON.stringify({ error: 'account_id requerido' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    if (request.method === 'GET') {
+      return getCategoryHistory(env, accountId, userId);
+    }
+    if (request.method === 'POST') {
+      const data = await request.json();
+      return saveCategoryHistory(env, accountId, userId, data);
+    }
+  }
+  
+  // Ruta principal de recategorización
   if (!accountId) {
     return new Response(JSON.stringify({ error: 'account_id requerido' }), {
       status: 400,

@@ -61,6 +61,28 @@ export interface BillingLimit {
   billed_amount?: number | null;
 }
 
+export interface CategoryHistory {
+  id: string;
+  arca_account_id: string;
+  period: string; // "2026-01" o "2025-07"
+  category: string;
+  total_billed?: number | null;
+  notes?: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface MonotributoLimitsHistory {
+  id: string;
+  period: string; // "2026-01" o "2025-07"
+  valid_from: number;
+  valid_until?: number | null;
+  limits_json: string; // JSON string
+  source?: string | null;
+  notes?: string | null;
+  created_at: number;
+}
+
 // Helper para generar IDs únicos
 export function generateId(): string {
   return crypto.randomUUID();
