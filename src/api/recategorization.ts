@@ -3,8 +3,9 @@ import { getAuthUser } from './auth';
 import { MONOTRIBUTO_LIMITS } from './limits';
 
 // Determinar la categoría correspondiente a un monto total
-function getCategoryForAmount(amount: number): string {
-  const categories = Object.entries(MONOTRIBUTO_LIMITS).sort((a, b) => a[1] - b[1]);
+function getCategoryForAmount(amount: number, limits?: Record<string, number>): string {
+  const limitsToUse = limits || MONOTRIBUTO_LIMITS;
+  const categories = Object.entries(limitsToUse).sort((a, b) => a[1] - b[1]);
   for (const [category, limit] of categories) {
     if (amount <= limit) {
       return category;
@@ -14,17 +15,18 @@ function getCategoryForAmount(amount: number): string {
 }
 
 // Obtener información de una categoría
-function getCategoryInfo(category: string) {
-  const categories = Object.keys(MONOTRIBUTO_LIMITS);
+function getCategoryInfo(category: string, limits?: Record<string, number>) {
+  const limitsToUse = limits || MONOTRIBUTO_LIMITS;
+  const categories = Object.keys(limitsToUse);
   const index = categories.indexOf(category);
   return {
     category,
-    limit: MONOTRIBUTO_LIMITS[category] || 0,
+    limit: limitsToUse[category] || 0,
     index,
     nextCategory: index < categories.length - 1 ? categories[index + 1] : null,
     prevCategory: index > 0 ? categories[index - 1] : null,
-    nextLimit: index < categories.length - 1 ? MONOTRIBUTO_LIMITS[categories[index + 1]] : null,
-    prevLimit: index > 0 ? MONOTRIBUTO_LIMITS[categories[index - 1]] : null
+    nextLimit: index < categories.length - 1 ? limitsToUse[categories[index + 1]] : null,
+    prevLimit: index > 0 ? limitsToUse[categories[index - 1]] : null
   };
 }
 
@@ -167,10 +169,13 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
     `).bind(accountId).first<{ category: string }>();
     
     const currentCategory = lastCategoryHistory?.category || 'A';
-    const currentCategoryInfo = getCategoryInfo(currentCategory);
     
     const now = new Date();
     const periods = getRecategorizationPeriods(now);
+    
+    // Obtener límites actuales para la categoría actual
+    const currentLimits = await getLimitsForDate(env, now);
+    const currentCategoryInfo = getCategoryInfo(currentCategory, currentLimits);
     
     // Importar función para calcular monto ajustado
     const { calcularMontoAjustado } = await import('../utils/comprobantes');
@@ -181,6 +186,9 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
     for (const period of periods) {
       const startTimestamp = Math.floor(period.periodStart.getTime() / 1000);
       const endTimestamp = Math.floor(period.periodEnd.getTime() / 1000);
+      
+      // Obtener límites vigentes para la fecha del deadline de recategorización
+      const limitsForPeriod = await getLimitsForDate(env, period.deadline);
       
       // Obtener facturas del período
       const invoices = await env.DB.prepare(`
@@ -227,16 +235,18 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       // Proyectar total al final del período
       const projectedTotal = periodTotal + (monthlyAverage * monthsRemaining);
       
-      // Determinar categoría proyectada
-      const projectedCategory = getCategoryForAmount(projectedTotal);
-      const projectedCategoryInfo = getCategoryInfo(projectedCategory);
+      // Determinar categoría proyectada usando los límites vigentes para ese período
+      const projectedCategory = getCategoryForAmount(projectedTotal, limitsForPeriod);
+      const projectedCategoryInfo = getCategoryInfo(projectedCategory, limitsForPeriod);
       
-      // Calcular máximo facturable para mantenerse en categoría actual
-      const currentLimit = MONOTRIBUTO_LIMITS[currentCategory] || 0;
+      // Calcular máximo facturable para mantenerse en categoría actual usando límites vigentes
+      const currentLimit = limitsForPeriod[currentCategory] || 0;
       const remainingToLimit = Math.max(0, currentLimit - periodTotal);
       const maxMonthlyToStay = monthsRemaining > 0 ? remainingToLimit / monthsRemaining : 0;
       
       // Determinar si sube, baja o se mantiene
+      // Comparar con la categoría actual usando los límites vigentes
+      const currentCategoryInfo = getCategoryInfo(currentCategory, limitsForPeriod);
       let trend: 'up' | 'down' | 'same' = 'same';
       if (projectedCategoryInfo.index > currentCategoryInfo.index) {
         trend = 'up';
@@ -259,7 +269,7 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
         currentCategory,
         currentCategoryLimit: currentLimit,
         projectedCategory,
-        projectedCategoryLimit: MONOTRIBUTO_LIMITS[projectedCategory] || 0,
+        projectedCategoryLimit: limitsForPeriod[projectedCategory] || 0,
         trend,
         
         // Para mantenerse
@@ -284,7 +294,7 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
     const response = {
       currentCategory,
       currentCategoryInfo,
-      allCategories: MONOTRIBUTO_LIMITS,
+      allCategories: currentLimits, // Usar límites actuales en lugar de hardcodeados
       
       nextRecategorization,
       periods: periodResults,
@@ -649,8 +659,8 @@ export async function calculatePeriodSuggestion(env: Env, accountId: string, use
     const periodEndDate = new Date(endTimestamp * 1000);
     const limits = await getLimitsForDate(env, periodEndDate);
     
-    // Determinar categoría sugerida
-    const suggestedCategory = getCategoryForAmount(totalBilled);
+    // Determinar categoría sugerida usando los límites vigentes para ese período
+    const suggestedCategory = getCategoryForAmount(totalBilled, limits);
     
     return new Response(JSON.stringify({
       period,
@@ -659,7 +669,7 @@ export async function calculatePeriodSuggestion(env: Env, accountId: string, use
       periodEnd: periodEndDate.toISOString(),
       totalBilled,
       suggestedCategory,
-      categoryLimit: limits[suggestedCategory] || MONOTRIBUTO_LIMITS[suggestedCategory],
+      categoryLimit: limits[suggestedCategory] || 0,
       invoiceCount: invoices.results.length,
       monthlyBreakdown,
       hasData: invoices.results.length > 0
