@@ -435,12 +435,18 @@ export async function saveCategoryHistory(env: Env, accountId: string, userId: s
 // HISTORIAL DE LÍMITES DEL MONOTRIBUTO
 // =====================================================
 
-export async function getLimitsHistory(env: Env): Promise<Response> {
+export async function getLimitsHistory(env: Env, onlyLatest: boolean = false): Promise<Response> {
   try {
-    const history = await env.DB.prepare(`
+    let query = `
       SELECT * FROM monotributo_limits_history 
       ORDER BY valid_from DESC
-    `).all();
+    `;
+    
+    if (onlyLatest) {
+      query += ' LIMIT 1';
+    }
+    
+    const history = await env.DB.prepare(query).all();
     
     // Parsear el JSON de límites
     const results = (history.results || []).map((item: any) => ({
@@ -448,7 +454,7 @@ export async function getLimitsHistory(env: Env): Promise<Response> {
       limits: JSON.parse(item.limits_json || '{}')
     }));
     
-    return new Response(JSON.stringify({ history: results }), {
+    return new Response(JSON.stringify({ limits: results }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });

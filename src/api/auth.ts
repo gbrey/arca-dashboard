@@ -74,13 +74,13 @@ export async function registerUser(env: Env, request: RegisterRequest): Promise<
 export async function loginUser(env: Env, request: AuthRequest): Promise<Response> {
   try {
     const user = await env.DB.prepare(
-      'SELECT id, email, password_hash, is_admin, is_blocked FROM users WHERE email = ?'
+      'SELECT id, email, password_hash, COALESCE(is_admin, 0) as is_admin, COALESCE(is_blocked, 0) as is_blocked FROM users WHERE email = ?'
     ).bind(request.email).first<{ 
       id: string; 
       email: string; 
       password_hash: string; 
-      is_admin: number;
-      is_blocked: number;
+      is_admin: number | null;
+      is_blocked: number | null;
     }>();
     
     if (!user) {
@@ -90,8 +90,9 @@ export async function loginUser(env: Env, request: AuthRequest): Promise<Respons
       });
     }
     
-    // Verificar si el usuario está bloqueado
-    if (user.is_blocked === 1) {
+    // Verificar si el usuario está bloqueado (manejar null como 0)
+    const isBlocked = user.is_blocked === 1 || user.is_blocked === true;
+    if (isBlocked) {
       return new Response(JSON.stringify({ error: 'Usuario bloqueado. Contacta al administrador.' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' }
@@ -108,13 +109,16 @@ export async function loginUser(env: Env, request: AuthRequest): Promise<Respons
     
     const token = await generateToken(env, user.id);
     
+    // Manejar null como false para is_admin
+    const isAdmin = user.is_admin === 1 || user.is_admin === true;
+    
     return new Response(JSON.stringify({ 
       success: true, 
       token,
       user: { 
         id: user.id, 
         email: user.email,
-        is_admin: user.is_admin === 1
+        is_admin: isAdmin
       }
     }), {
       status: 200,
@@ -124,7 +128,12 @@ export async function loginUser(env: Env, request: AuthRequest): Promise<Respons
       }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Error al iniciar sesión' }), {
+    console.error('[Login] Error:', error);
+    console.error('[Login] Error details:', error instanceof Error ? error.message : String(error));
+    return new Response(JSON.stringify({ 
+      error: 'Error al iniciar sesión',
+      details: error instanceof Error ? error.message : String(error)
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
