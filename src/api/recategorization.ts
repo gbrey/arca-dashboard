@@ -187,8 +187,12 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       const startTimestamp = Math.floor(period.periodStart.getTime() / 1000);
       const endTimestamp = Math.floor(period.periodEnd.getTime() / 1000);
       
-      // Obtener límites vigentes para la fecha del deadline de recategorización
-      const limitsForPeriod = await getLimitsForDate(env, period.deadline);
+      // Obtener límites vigentes para el mes de recategorización
+      // Los límites del mes de recategorización (Enero o Julio) estarán vigentes por los próximos 6 meses
+      // Enero: límites vigentes desde el 1 de Enero
+      // Julio: límites vigentes desde el 1 de Julio
+      const recategorizationMonthStart = new Date(period.deadline.getFullYear(), period.deadline.getMonth(), 1);
+      const limitsForPeriod = await getLimitsForDate(env, recategorizationMonthStart);
       
       // Obtener facturas del período
       const invoices = await env.DB.prepare(`
@@ -655,11 +659,14 @@ export async function calculatePeriodSuggestion(env: Env, accountId: string, use
     
     totalBilled = Math.max(0, Math.round(totalBilled));
     
-    // Obtener los límites vigentes para ese período
-    const periodEndDate = new Date(endTimestamp * 1000);
-    const limits = await getLimitsForDate(env, periodEndDate);
+    // Obtener los límites vigentes para el mes de recategorización
+    // Los límites del mes de recategorización (Enero o Julio) estarán vigentes por los próximos 6 meses
+    // Enero: límites vigentes desde el 1 de Enero
+    // Julio: límites vigentes desde el 1 de Julio
+    const recategorizationMonthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const limits = await getLimitsForDate(env, recategorizationMonthStart);
     
-    // Determinar categoría sugerida usando los límites vigentes para ese período
+    // Determinar categoría sugerida usando los límites vigentes para el mes de recategorización
     const suggestedCategory = getCategoryForAmount(totalBilled, limits);
     
     return new Response(JSON.stringify({
