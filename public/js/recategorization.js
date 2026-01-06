@@ -247,6 +247,32 @@ function recategorizationApp() {
       }
     },
     
+    editLimits(item) {
+      // Cargar los datos del item en el formulario
+      const validFromDate = new Date(item.valid_from * 1000);
+      const dateStr = validFromDate.toISOString().split('T')[0]; // formato YYYY-MM-DD
+      
+      this.newLimits = {
+        period: item.period,
+        valid_from: dateStr,
+        limits: { ...item.limits }
+      };
+      this.showLimitsForm = true;
+      this.limitsError = '';
+    },
+    
+    editHistory(item) {
+      // Cargar los datos del item en el formulario
+      this.newHistory = {
+        period: item.period,
+        category: item.category,
+        total_billed: item.total_billed || null,
+        notes: item.notes || ''
+      };
+      this.showHistoryForm = true;
+      this.historyError = '';
+    },
+    
     runSimulation() {
       if (!this.data || !this.simulatorAmount || !this.simulatorPeriod) {
         this.simulatorResult = null;

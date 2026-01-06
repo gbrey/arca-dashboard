@@ -394,6 +394,7 @@
                 <th class="text-center py-2 px-3 text-sm font-medium text-gray-600">Categoría</th>
                 <th class="text-right py-2 px-3 text-sm font-medium text-gray-600">Total Facturado</th>
                 <th class="text-left py-2 px-3 text-sm font-medium text-gray-600">Notas</th>
+                <th class="text-center py-2 px-3 text-sm font-medium text-gray-600"></th>
               </tr>
             </thead>
             <tbody>
@@ -409,6 +410,11 @@
                   </td>
                   <td class="py-2 px-3 text-right" x-text="item.total_billed ? formatCurrency(item.total_billed) : '-'"></td>
                   <td class="py-2 px-3 text-sm text-gray-500" x-text="item.notes || '-'"></td>
+                  <td class="py-2 px-3 text-center">
+                    <button @click="editHistory(item)" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                      ✏️
+                    </button>
+                  </td>
                 </tr>
               </template>
             </tbody>
@@ -482,9 +488,14 @@
             <div class="p-3 bg-gray-50 rounded-lg">
               <div class="flex justify-between items-center mb-2">
                 <span class="font-medium" x-text="formatPeriod(item.period)"></span>
-                <span class="text-sm text-gray-500">
-                  Desde: <span x-text="new Date(item.valid_from * 1000).toLocaleDateString('es-AR')"></span>
-                </span>
+                <div class="flex items-center gap-3">
+                  <span class="text-sm text-gray-500">
+                    Desde: <span x-text="new Date(item.valid_from * 1000).toLocaleDateString('es-AR')"></span>
+                  </span>
+                  <button @click="editLimits(item)" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                    ✏️ Editar
+                  </button>
+                </div>
               </div>
               <div class="grid grid-cols-6 md:grid-cols-11 gap-1 text-xs">
                 <template x-for="cat in ['A','B','C','D','E','F','G','H','I','J','K']" :key="cat">
