@@ -195,8 +195,10 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       const recategorizationYear = period.deadline.getFullYear();
       const recategorizationMonth = period.deadline.getMonth(); // 0-indexed (0=Enero, 6=Julio)
       const recategorizationMonthStart = new Date(Date.UTC(recategorizationYear, recategorizationMonth, 1, 0, 0, 0));
+      const expectedPeriod = `${recategorizationYear}-${String(recategorizationMonth + 1).padStart(2, '0')}`;
+      console.log(`[Recategorization] Period ${period.name}, looking for limits for period: ${expectedPeriod}, date: ${recategorizationMonthStart.toISOString()}`);
       const limitsForPeriod = await getLimitsForDate(env, recategorizationMonthStart);
-      console.log(`[Recategorization] Period ${period.name}, recategorizationMonthStart: ${recategorizationMonthStart.toISOString()}, limits keys: ${Object.keys(limitsForPeriod).join(', ')}`);
+      console.log(`[Recategorization] Period ${period.name}, limits found - keys: ${Object.keys(limitsForPeriod).join(', ')}, sample values: A=${limitsForPeriod['A']}, B=${limitsForPeriod['B']}, C=${limitsForPeriod['C']}`);
       
       // Obtener facturas del período
       const invoices = await env.DB.prepare(`
@@ -244,8 +246,10 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       const projectedTotal = periodTotal + (monthlyAverage * monthsRemaining);
       
       // Determinar categoría proyectada usando los límites vigentes para ese período
+      console.log(`[Recategorization] Period ${period.name}, projectedTotal: ${projectedTotal}, using limits: ${JSON.stringify(Object.fromEntries(Object.entries(limitsForPeriod).slice(0, 5)))}`);
       const projectedCategory = getCategoryForAmount(projectedTotal, limitsForPeriod);
       const projectedCategoryInfo = getCategoryInfo(projectedCategory, limitsForPeriod);
+      console.log(`[Recategorization] Period ${period.name}, projectedCategory: ${projectedCategory}, limit: ${projectedCategoryInfo.limit}`);
       
       // Calcular máximo facturable para mantenerse en categoría actual usando límites vigentes
       const currentLimit = limitsForPeriod[currentCategory] || 0;
