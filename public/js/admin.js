@@ -22,8 +22,9 @@ function adminApp() {
       valid_from: '',
       limits: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0, H: 0, I: 0, J: 0, K: 0 },
       source: '',
-      ipc_months: [0, 0, 0, 0, 0, 0] // IPC de los últimos 6 meses
+      ipc: 0 // IPC único para aplicar
     },
+    previousPeriodLimits: null, // Límites del período anterior
     
     get availablePeriods() {
       const periods = [];
@@ -177,20 +178,59 @@ function adminApp() {
         valid_from: new Date(limit.valid_from * 1000).toISOString().split('T')[0],
         limits: { ...limit.limits },
         source: limit.source || '',
-        ipc_months: [0, 0, 0, 0, 0, 0] // No se usa en edición
+        ipc: 0
       };
+      this.previousPeriodLimits = null;
       this.showLimitsForm = true;
     },
     
-    calculateAccumulatedIPC() {
-      // Calcular IPC acumulado: (1 + ipc1/100) * (1 + ipc2/100) * ... - 1
-      let accumulated = 1;
-      for (const ipc of this.limitForm.ipc_months) {
-        if (ipc && ipc !== 0) {
-          accumulated *= (1 + ipc / 100);
+    async loadPreviousPeriodLimits(period) {
+      if (!period) {
+        this.previousPeriodLimits = null;
+        return;
+      }
+      
+      try {
+        // Calcular período anterior
+        const [year, month] = period.split('-').map(Number);
+        let previousPeriod;
+        if (month === 1) {
+          // Si es Enero, el anterior es Julio del año anterior
+          previousPeriod = `${year - 1}-07`;
+        } else {
+          // Si es Julio, el anterior es Enero del mismo año
+          previousPeriod = `${year}-01`;
+        }
+        
+        const response = await fetch(`/api/recategorization/limits?period=${previousPeriod}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.limits && data.limits.length > 0) {
+            this.previousPeriodLimits = data.limits[0];
+            // Pre-llenar los límites con los del período anterior
+            this.limitForm.limits = { ...this.previousPeriodLimits.limits };
+          } else {
+            this.previousPeriodLimits = null;
+          }
+        }
+      } catch (error) {
+        console.error('Error loading previous period limits:', error);
+        this.previousPeriodLimits = null;
+      }
+    },
+    
+    applyIPCToLimits() {
+      if (!this.previousPeriodLimits || !this.limitForm.ipc || this.limitForm.ipc === 0) {
+        return;
+      }
+      
+      // Aplicar IPC a cada categoría
+      const multiplier = 1 + (this.limitForm.ipc / 100);
+      for (const category of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']) {
+        if (this.previousPeriodLimits.limits[category]) {
+          this.limitForm.limits[category] = Math.round(this.previousPeriodLimits.limits[category] * multiplier);
         }
       }
-      return ((accumulated - 1) * 100).toFixed(2);
     },
     
     async saveLimits() {
@@ -198,27 +238,18 @@ function adminApp() {
         const validFromDate = new Date(this.limitForm.valid_from);
         const validFromTimestamp = Math.floor(validFromDate.getTime() / 1000);
         
-        // Preparar datos, incluyendo IPC si está especificado
-        const requestData = {
-          period: this.limitForm.period,
-          valid_from: validFromTimestamp,
-          limits: this.limitForm.limits,
-          source: this.limitForm.source
-        };
-        
-        // Solo incluir IPC si hay valores y no es edición
-        const hasIPC = this.limitForm.ipc_months.some(ipc => ipc && ipc !== 0);
-        if (!this.editingLimitId && hasIPC) {
-          requestData.ipc_months = this.limitForm.ipc_months;
-        }
-        
         const response = await fetch('/api/recategorization/limits', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(requestData)
+          body: JSON.stringify({
+            period: this.limitForm.period,
+            valid_from: validFromTimestamp,
+            limits: this.limitForm.limits,
+            source: this.limitForm.source
+          })
         });
         
         if (response.ok) {
@@ -238,12 +269,13 @@ function adminApp() {
     cancelLimitsForm() {
       this.showLimitsForm = false;
       this.editingLimitId = null;
+      this.previousPeriodLimits = null;
       this.limitForm = {
         period: '',
         valid_from: '',
         limits: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0, H: 0, I: 0, J: 0, K: 0 },
         source: '',
-        ipc_months: [0, 0, 0, 0, 0, 0]
+        ipc: 0
       };
       this.limitsError = '';
     },

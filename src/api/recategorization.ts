@@ -466,63 +466,6 @@ export async function getLimitsHistory(env: Env, onlyLatest: boolean = false): P
   }
 }
 
-// Aplicar IPC acumulado a límites anteriores
-async function applyIPCToPreviousLimits(env: Env, newPeriod: string, ipcMonths: number[]): Promise<void> {
-  try {
-    // Calcular IPC acumulado: (1 + ipc1/100) * (1 + ipc2/100) * ... - 1
-    let accumulatedMultiplier = 1;
-    for (const ipc of ipcMonths) {
-      if (ipc && ipc !== 0) {
-        accumulatedMultiplier *= (1 + ipc / 100);
-      }
-    }
-    const accumulatedIPC = accumulatedMultiplier - 1; // Como decimal (ej: 0.15 para 15%)
-    
-    if (accumulatedIPC === 0) return; // No hay IPC para aplicar
-    
-    // Obtener el período anterior (el inmediatamente anterior al nuevo)
-    const [newYear, newMonth] = newPeriod.split('-').map(Number);
-    let previousPeriod: string;
-    
-    if (newMonth === 1) {
-      // Si el nuevo es Enero, el anterior es Julio del año anterior
-      previousPeriod = `${newYear - 1}-07`;
-    } else {
-      // Si el nuevo es Julio, el anterior es Enero del mismo año
-      previousPeriod = `${newYear}-01`;
-    }
-    
-    // Obtener todos los límites desde el período anterior hasta el nuevo (excluyendo el nuevo)
-    const allLimits = await env.DB.prepare(`
-      SELECT * FROM monotributo_limits_history 
-      WHERE period >= ? AND period < ?
-      ORDER BY period ASC
-    `).bind(previousPeriod, newPeriod).all();
-    
-    // Aplicar IPC a cada límite encontrado
-    for (const limit of allLimits.results || []) {
-      const currentLimits = JSON.parse(limit.limits_json || '{}');
-      const adjustedLimits: Record<string, number> = {};
-      
-      // Aplicar IPC acumulado a cada categoría
-      for (const [category, amount] of Object.entries(currentLimits)) {
-        adjustedLimits[category] = Math.round((amount as number) * (1 + accumulatedIPC));
-      }
-      
-      // Actualizar el límite en la base de datos
-      await env.DB.prepare(`
-        UPDATE monotributo_limits_history 
-        SET limits_json = ?, updated_at = ?
-        WHERE id = ?
-      `).bind(JSON.stringify(adjustedLimits), Math.floor(Date.now() / 1000), limit.id).run();
-    }
-    
-    console.log(`[IPC] Aplicado IPC acumulado ${(accumulatedIPC * 100).toFixed(2)}% a ${allLimits.results?.length || 0} períodos desde ${previousPeriod} hasta ${newPeriod}`);
-  } catch (error: any) {
-    console.error('[IPC] Error al aplicar IPC a límites anteriores:', error);
-    throw error;
-  }
-}
 
 export async function saveLimitsHistory(env: Env, userId: string, data: any): Promise<Response> {
   try {
@@ -538,18 +481,13 @@ export async function saveLimitsHistory(env: Env, userId: string, data: any): Pr
       });
     }
     
-    const { period, valid_from, limits, source, notes, ipc_months } = data;
+    const { period, valid_from, limits, source, notes } = data;
     
     if (!period || !valid_from || !limits) {
       return new Response(JSON.stringify({ error: 'period, valid_from y limits son requeridos' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
-    }
-    
-    // Si hay IPC especificado, aplicar a límites anteriores
-    if (ipc_months && Array.isArray(ipc_months) && ipc_months.some((ipc: number) => ipc && ipc !== 0)) {
-      await applyIPCToPreviousLimits(env, period, ipc_months);
     }
     
     // Validar formato del período
@@ -751,7 +689,9 @@ export async function handleRecategorization(request: Request, env: Env): Promis
     if (request.method === 'GET') {
       // Si viene el parámetro only_latest=true, devolver solo el último
       const onlyLatest = url.searchParams.get('only_latest') === 'true';
-      return getLimitsHistory(env, onlyLatest);
+      // Si viene el parámetro period, buscar ese período específico
+      const specificPeriod = url.searchParams.get('period') || undefined;
+      return getLimitsHistory(env, onlyLatest, specificPeriod);
     }
     if (request.method === 'POST') {
       const userId = await getAuthUser(request, env);
