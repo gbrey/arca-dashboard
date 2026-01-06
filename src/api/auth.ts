@@ -163,3 +163,60 @@ export async function getAuthUser(request: Request, env: Env): Promise<string | 
   return verified?.userId || null;
 }
 
+export interface ResetPasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export async function resetPassword(env: Env, userId: string, request: ResetPasswordRequest): Promise<Response> {
+  try {
+    // Obtener usuario actual
+    const user = await env.DB.prepare(
+      'SELECT id, password_hash FROM users WHERE id = ?'
+    ).bind(userId).first<{ id: string; password_hash: string }>();
+    
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Usuario no encontrado' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Verificar contraseña actual
+    const isValid = await verifyPassword(request.current_password, user.password_hash);
+    if (!isValid) {
+      return new Response(JSON.stringify({ error: 'Contraseña actual incorrecta' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Validar nueva contraseña
+    if (!request.new_password || request.new_password.length < 6) {
+      return new Response(JSON.stringify({ error: 'La nueva contraseña debe tener al menos 6 caracteres' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Actualizar contraseña
+    const newPasswordHash = await hashPassword(request.new_password);
+    await env.DB.prepare(
+      'UPDATE users SET password_hash = ? WHERE id = ?'
+    ).bind(newPasswordHash, userId).run();
+    
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: 'Contraseña actualizada correctamente'
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: 'Error al actualizar contraseña' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+

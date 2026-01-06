@@ -1,5 +1,5 @@
 import { Env } from '../../src/utils/db';
-import { registerUser, loginUser, getAuthUser } from '../../src/api/auth';
+import { registerUser, loginUser, getAuthUser, resetPassword } from '../../src/api/auth';
 import { handleInvoices } from '../../src/api/invoices';
 import { handleLimits } from '../../src/api/limits';
 import { handleRecategorization } from '../../src/api/recategorization';
@@ -35,6 +35,17 @@ export const onRequest = async (context: { request: Request; env: Env }) => {
       } else if (path === '/api/auth/login' && request.method === 'POST') {
         const body = await request.json();
         response = await loginUser(env, body);
+      } else if (path === '/api/auth/reset-password' && request.method === 'POST') {
+        const userId = await getAuthUser(request, env);
+        if (!userId) {
+          response = new Response(JSON.stringify({ error: 'No autorizado' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } else {
+          const body = await request.json();
+          response = await resetPassword(env, userId, body);
+        }
       }
       // Invoice routes
       else if (path.startsWith('/api/invoices')) {
