@@ -29,6 +29,13 @@ function dashboardApp() {
       new_password: '',
       confirm_password: ''
     },
+    // Navegación del gráfico
+    chartPeriodMonths: 12, // 12 o 6 meses
+    chartStartMonth: null, // Mes inicial del período mostrado (null = últimos N meses)
+    chartDateRange: null, // { min_date, max_date } en timestamps
+    chartPeriodLabel: 'Últimos 12 meses',
+    canNavigateBackward: false,
+    canNavigateForward: false,
     
     async init() {
       // Verificar autenticación
@@ -129,7 +136,7 @@ function dashboardApp() {
           this.recatData = null;
         }
         
-        // Cargar datos para gráfico
+        // Cargar datos para gráfico (obtener rango de fechas disponible)
         await this.loadRevenueChart();
         
       } catch (error) {
@@ -141,8 +148,8 @@ function dashboardApp() {
     
     async loadRevenueChart() {
       try {
-        // Obtener facturas de últimos 12 meses para el gráfico
-        const response = await fetch(`/api/invoices?account_id=${this.selectedAccountId}&limit=100`, {
+        // Obtener facturas con rango de fechas disponible
+        const response = await fetch(`/api/invoices?account_id=${this.selectedAccountId}&limit=1000`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -153,16 +160,55 @@ function dashboardApp() {
         const data = await response.json();
         const invoices = data.invoices || [];
         
-        // Agrupar por mes
-        const monthlyData = {};
-        const now = new Date();
-        
-        for (let i = 11; i >= 0; i--) {
-          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          monthlyData[key] = 0;
+        // Guardar rango de fechas disponible
+        if (data.dateRange && data.dateRange.min_date && data.dateRange.max_date) {
+          this.chartDateRange = {
+            min_date: data.dateRange.min_date,
+            max_date: data.dateRange.max_date
+          };
+        } else if (invoices.length > 0) {
+          // Calcular rango desde las facturas si no viene en la respuesta
+          const dates = invoices.map(inv => inv.date).filter(d => d);
+          if (dates.length > 0) {
+            this.chartDateRange = {
+              min_date: Math.min(...dates),
+              max_date: Math.max(...dates)
+            };
+          }
         }
         
+        // Si no hay rango de fechas, no hay facturas disponibles
+        if (!this.chartDateRange) {
+          this.chartPeriodLabel = 'Sin facturas disponibles';
+          this.canNavigateBackward = false;
+          this.canNavigateForward = false;
+          return;
+        }
+        
+        // Determinar el mes inicial del período a mostrar
+        const now = new Date();
+        let startMonth;
+        
+        if (this.chartStartMonth === null) {
+          // Por defecto: últimos N meses desde hoy
+          startMonth = new Date(now.getFullYear(), now.getMonth() - (this.chartPeriodMonths - 1), 1);
+        } else {
+          // Navegación: usar el mes guardado
+          startMonth = new Date(this.chartStartMonth);
+        }
+        
+        // Calcular meses a mostrar
+        const monthlyData = {};
+        const monthLabels = [];
+        
+        for (let i = 0; i < this.chartPeriodMonths; i++) {
+          const date = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          monthlyData[key] = 0;
+          monthLabels.push(key);
+        }
+        
+        // Agrupar facturas por mes
         invoices.forEach(invoice => {
           const date = new Date(invoice.date * 1000);
           const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -171,8 +217,29 @@ function dashboardApp() {
           }
         });
         
-        const labels = Object.keys(monthlyData);
-        const values = Object.values(monthlyData);
+        const labels = monthLabels.map(key => {
+          const [year, month] = key.split('-');
+          const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+          return `${monthNames[parseInt(month) - 1]} ${year.slice(-2)}`;
+        });
+        const values = monthLabels.map(key => monthlyData[key] || 0);
+        
+        // Actualizar label del período
+        const startLabel = labels[0];
+        const endLabel = labels[labels.length - 1];
+        this.chartPeriodLabel = `${startLabel} - ${endLabel}`;
+        
+        // Verificar si hay facturas disponibles para navegación
+        const minDate = new Date(this.chartDateRange.min_date * 1000);
+        const maxDate = new Date(this.chartDateRange.max_date * 1000);
+        
+        // Verificar si puede navegar hacia atrás (si hay facturas antes del período actual)
+        const periodStart = new Date(startMonth);
+        this.canNavigateBackward = periodStart > minDate;
+        
+        // Verificar si puede navegar hacia adelante (si hay facturas después del período actual)
+        const periodEnd = new Date(startMonth.getFullYear(), startMonth.getMonth() + this.chartPeriodMonths, 0);
+        this.canNavigateForward = periodEnd < maxDate;
         
         // Crear/actualizar gráfico
         const ctx = document.getElementById('revenueChart');
@@ -216,6 +283,54 @@ function dashboardApp() {
       } catch (error) {
         console.error('Error al cargar gráfico:', error);
       }
+    },
+    
+    navigateChart(direction) {
+      // direction: -1 = anterior, 1 = siguiente, 0 = resetear
+      if (direction === 0) {
+        // Resetear a los últimos N meses
+        this.chartStartMonth = null;
+      } else {
+        // Navegar N meses hacia atrás o adelante
+        const now = new Date();
+        let currentStart;
+        
+        if (this.chartStartMonth === null) {
+          // Estamos en los últimos N meses, calcular desde hoy
+          currentStart = new Date(now.getFullYear(), now.getMonth() - (this.chartPeriodMonths - 1), 1);
+        } else {
+          currentStart = new Date(this.chartStartMonth);
+        }
+        
+        // Mover el período
+        const newStart = new Date(currentStart.getFullYear(), currentStart.getMonth() + (direction * this.chartPeriodMonths), 1);
+        
+        // Validar que no exceda el rango disponible
+        if (this.chartDateRange) {
+          const minDate = new Date(this.chartDateRange.min_date * 1000);
+          const maxDate = new Date(this.chartDateRange.max_date * 1000);
+          
+          // Asegurar que el nuevo inicio no sea antes del mínimo disponible
+          if (newStart < minDate) {
+            this.chartStartMonth = minDate.getTime();
+          } else {
+            // Verificar que el período completo no exceda el máximo
+            const periodEnd = new Date(newStart.getFullYear(), newStart.getMonth() + this.chartPeriodMonths, 0);
+            if (periodEnd > maxDate) {
+              // Ajustar para que termine en maxDate
+              const adjustedStart = new Date(maxDate.getFullYear(), maxDate.getMonth() - (this.chartPeriodMonths - 1), 1);
+              this.chartStartMonth = adjustedStart.getTime();
+            } else {
+              this.chartStartMonth = newStart.getTime();
+            }
+          }
+        } else {
+          this.chartStartMonth = newStart.getTime();
+        }
+      }
+      
+      // Recargar gráfico con nuevo período
+      this.loadRevenueChart();
     },
     
     getTipoComprobante(invoice) {

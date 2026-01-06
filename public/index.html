@@ -167,7 +167,50 @@
     
     <!-- Gráfico de Facturación Mensual -->
     <div class="bg-white rounded-lg shadow p-6 mb-8">
-      <h2 class="text-xl font-semibold mb-4">Facturación Mensual (Últimos 12 meses)</h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">
+          Facturación Mensual
+          <span class="text-sm font-normal text-gray-500 ml-2" x-text="chartPeriodLabel"></span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <!-- Selector de período -->
+          <div class="flex items-center gap-1 bg-gray-100 rounded-md p-1">
+            <button 
+              @click="chartPeriodMonths = 12; navigateChart(0)"
+              :class="chartPeriodMonths === 12 ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'"
+              class="px-3 py-1 rounded text-sm font-medium transition-all"
+            >
+              12 meses
+            </button>
+            <button 
+              @click="chartPeriodMonths = 6; navigateChart(0)"
+              :class="chartPeriodMonths === 6 ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'"
+              class="px-3 py-1 rounded text-sm font-medium transition-all"
+            >
+              6 meses
+            </button>
+          </div>
+          <!-- Navegación -->
+          <div class="flex items-center gap-1">
+            <button 
+              @click="navigateChart(-1)"
+              :disabled="!canNavigateBackward"
+              class="px-3 py-1 rounded text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="canNavigateBackward ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-gray-50 text-gray-400'"
+            >
+              ← Anterior
+            </button>
+            <button 
+              @click="navigateChart(1)"
+              :disabled="!canNavigateForward"
+              class="px-3 py-1 rounded text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="canNavigateForward ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-gray-50 text-gray-400'"
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      </div>
       <canvas id="revenueChart" width="400" height="150"></canvas>
     </div>
     

@@ -56,9 +56,22 @@ export async function handleInvoices(request: Request, env: Env): Promise<Respon
       return arcaResponse;
     }
     
+    // Obtener rango de fechas disponible (min y max) para navegación
+    const dateRange = await env.DB.prepare(`
+      SELECT 
+        MIN(date) as min_date,
+        MAX(date) as max_date
+      FROM invoices 
+      WHERE arca_account_id = ?
+    `).bind(accountId).first<{ min_date: number | null; max_date: number | null }>();
+    
     return new Response(JSON.stringify({ 
       invoices: invoices.results,
-      cached: invoices.results.length > 0 && (!arcaResponse || !arcaResponse.ok)
+      cached: invoices.results.length > 0 && (!arcaResponse || !arcaResponse.ok),
+      dateRange: dateRange ? {
+        min_date: dateRange.min_date,
+        max_date: dateRange.max_date
+      } : null
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
