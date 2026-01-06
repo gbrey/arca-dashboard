@@ -86,6 +86,9 @@ function simulatorApp() {
         if (response.ok) {
           this.simulation = await response.json();
           console.log('Simulación cargada:', this.simulation);
+          console.log('Meses hasta recategorización:', this.simulation.current?.months_to_recategorization);
+          console.log('Próxima recategorización:', this.simulation.current?.next_recategorization);
+          console.log('Número de proyecciones:', this.simulation.scenarios?.conservative?.projections?.length);
           
           // Store category limits
           this.categoryLimits = this.simulation.all_categories || {};
