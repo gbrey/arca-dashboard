@@ -58,7 +58,6 @@ export async function getLimits(env: Env, accountId: string, userId: string): Pr
     
     // Calcular total facturado en últimos 12 meses (365 días exactos)
     // Considerando que notas de crédito restan y notas de débito suman
-    const now = new Date();
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
     const twelveMonthsAgoTimestamp = Math.floor(twelveMonthsAgo.getTime() / 1000);
     
@@ -92,7 +91,6 @@ export async function getLimits(env: Env, accountId: string, userId: string): Pr
     
     // Asegurar que el total no sea negativo
     totalBilled = Math.max(0, totalBilled);
-    const limitAmount = limit.limit_amount;
     const percentage = (totalBilled / limitAmount) * 100;
     const remaining = limitAmount - totalBilled;
     
@@ -102,22 +100,22 @@ export async function getLimits(env: Env, accountId: string, userId: string): Pr
       alertLevel = 'exceeded';
     } else if (percentage >= 90) {
       alertLevel = 'danger';
-    } else if (percentage >= limit.alert_threshold * 100) {
+    } else if (percentage >= alertThreshold * 100) {
       alertLevel = 'warning';
     }
     
     return new Response(JSON.stringify({
-      category: limit.category,
-      limit_amount: limitAmount,
+      category: currentCategory, // Usar categoría del historial (sistema nuevo)
+      limit_amount: limitAmount, // Usar límite vigente actual
       total_billed: totalBilled,
       remaining: remaining,
       percentage: Math.round(percentage * 100) / 100,
       alert_level: alertLevel,
-      alert_threshold: limit.alert_threshold,
-      next_due_amount: limit.next_due_amount || null,
-      next_due_date: limit.next_due_date || null,
-      billing_update_date: limit.billing_update_date || null,
-      billed_amount: limit.billed_amount || null
+      alert_threshold: alertThreshold,
+      next_due_amount: null, // Ya no se usa
+      next_due_date: null, // Ya no se usa
+      billing_update_date: null, // Ya no se usa
+      billed_amount: null // Ya no se usa
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
