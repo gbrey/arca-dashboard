@@ -182,6 +182,7 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
     
     // Calcular totales para cada período
     const periodResults = [];
+    let limitsForNextRecategorization: Record<string, number> | null = null; // Guardar límites del primer período para allCategories
     
     for (const period of periods) {
       const startTimestamp = Math.floor(period.periodStart.getTime() / 1000);
@@ -199,6 +200,11 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       console.log(`[Recategorization] Period ${period.name}, looking for limits for period: ${expectedPeriod}, date: ${recategorizationMonthStart.toISOString()}`);
       const limitsForPeriod = await getLimitsForDate(env, recategorizationMonthStart);
       console.log(`[Recategorization] Period ${period.name}, limits found - keys: ${Object.keys(limitsForPeriod).join(', ')}, sample values: A=${limitsForPeriod['A']}, B=${limitsForPeriod['B']}, C=${limitsForPeriod['C']}`);
+      
+      // Guardar límites del primer período (próxima recategorización) para allCategories
+      if (!limitsForNextRecategorization) {
+        limitsForNextRecategorization = limitsForPeriod;
+      }
       
       // Obtener facturas del período
       const invoices = await env.DB.prepare(`
@@ -303,19 +309,10 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
     // Determinar próxima recategorización
     const nextRecategorization = periodResults[0];
     
-    // Usar los límites del período de recategorización para allCategories
-    // Esto asegura que la referencia de categorías muestre los límites correctos
-    const limitsForNextRecategorization = nextRecategorization ? 
-      await getLimitsForDate(env, new Date(Date.UTC(
-        nextRecategorization.deadline.getFullYear(),
-        nextRecategorization.deadline.getMonth(),
-        1, 0, 0, 0
-      ))) : currentLimits;
-    
     const response = {
       currentCategory,
       currentCategoryInfo,
-      allCategories: limitsForNextRecategorization, // Usar límites del período de recategorización
+      allCategories: limitsForNextRecategorization || currentLimits, // Usar límites del período de recategorización
       
       nextRecategorization,
       periods: periodResults,
