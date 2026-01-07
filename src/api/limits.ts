@@ -32,29 +32,29 @@ export async function getLimits(env: Env, accountId: string, userId: string): Pr
       });
     }
     
-    // Obtener límite configurado o crear uno por defecto
-    let limit = await env.DB.prepare(
-      'SELECT * FROM billing_limits WHERE arca_account_id = ?'
-    ).bind(accountId).first<BillingLimit>();
+    // Obtener categoría actual desde el historial (sistema nuevo por semestres)
+    // Si no hay historial, usa la más baja (A)
+    const lastCategoryHistory = await env.DB.prepare(`
+      SELECT category FROM category_history 
+      WHERE arca_account_id = ? 
+      ORDER BY period DESC 
+      LIMIT 1
+    `).bind(accountId).first<{ category: string }>();
     
-    if (!limit) {
-      // Crear límite por defecto (categoría H - máximo)
-      const defaultCategory = 'H';
-      const defaultLimitAmount = MONOTRIBUTO_LIMITS[defaultCategory];
-      
-      await env.DB.prepare(`
-        INSERT INTO billing_limits 
-        (arca_account_id, category, limit_amount, alert_threshold)
-        VALUES (?, ?, ?, ?)
-      `).bind(accountId, defaultCategory, defaultLimitAmount, 0.8).run();
-      
-      limit = {
-        arca_account_id: accountId,
-        category: defaultCategory,
-        limit_amount: defaultLimitAmount,
-        alert_threshold: 0.8
-      };
-    }
+    const currentCategory = lastCategoryHistory?.category || 'A';
+    
+    // Obtener límites vigentes actuales (del período actual)
+    const now = new Date();
+    const { getLimitsForDate } = await import('./recategorization');
+    const currentLimits = await getLimitsForDate(env, now);
+    const limitAmount = currentLimits[currentCategory] || MONOTRIBUTO_LIMITS[currentCategory] || 0;
+    
+    // Mantener alert_threshold del sistema antiguo si existe, sino usar default
+    const oldLimit = await env.DB.prepare(
+      'SELECT alert_threshold FROM billing_limits WHERE arca_account_id = ?'
+    ).bind(accountId).first<{ alert_threshold: number }>();
+    
+    const alertThreshold = oldLimit?.alert_threshold || 0.8;
     
     // Calcular total facturado en últimos 12 meses (365 días exactos)
     // Considerando que notas de crédito restan y notas de débito suman

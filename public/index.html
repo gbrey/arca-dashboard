@@ -121,8 +121,13 @@
       <!-- Categoría Monotributo -->
       <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-sm font-medium text-gray-500 mb-2">Categoría Monotributo</h3>
-        <p class="text-3xl font-bold text-blue-600" x-text="recatData?.currentCategory || 'N/A'"></p>
-        <p class="text-sm text-gray-500 mt-1">Restante: <span x-text="formatCurrency(limits.remaining)"></span></p>
+        <p class="text-3xl font-bold text-blue-600" x-text="recatData?.currentCategory || limits.category || 'N/A'"></p>
+        <p class="text-sm text-gray-500 mt-1">
+          Límite: <span x-text="formatCurrency(recatData?.currentCategoryInfo?.limit || limits.limit_amount || 0)"></span>
+        </p>
+        <p class="text-sm text-gray-500 mt-1">
+          Restante: <span x-text="formatCurrency(Math.max(0, (recatData?.currentCategoryInfo?.limit || limits.limit_amount || 0) - limits.total_billed))"></span>
+        </p>
         
         <!-- Próxima Recategorización -->
         <div x-show="recatData?.nextRecategorization" class="mt-3 pt-3 border-t">
