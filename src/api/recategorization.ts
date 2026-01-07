@@ -208,10 +208,12 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       console.log(`[Recategorization] Period ${period.name}, looking for limits for period: ${expectedPeriod}, date: ${recategorizationMonthStart.toISOString()}`);
       const limitsForPeriod = await getLimitsForDate(env, recategorizationMonthStart);
       console.log(`[Recategorization] Period ${period.name}, limits found - keys: ${Object.keys(limitsForPeriod).join(', ')}, sample values: A=${limitsForPeriod['A']}, B=${limitsForPeriod['B']}, C=${limitsForPeriod['C']}`);
+      console.log(`[Recategorization] Period ${period.name}, IMPORTANT limits I=${limitsForPeriod['I']}, J=${limitsForPeriod['J']}, K=${limitsForPeriod['K']}`);
       
       // Guardar límites del primer período (próxima recategorización) para allCategories
       if (!limitsForNextRecategorization) {
         limitsForNextRecategorization = limitsForPeriod;
+        console.log(`[Recategorization] Saved limitsForNextRecategorization with I=${limitsForNextRecategorization['I']}, J=${limitsForNextRecategorization['J']}, K=${limitsForNextRecategorization['K']}`);
       }
       
       // Obtener facturas del período
