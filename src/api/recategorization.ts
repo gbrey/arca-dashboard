@@ -604,8 +604,15 @@ export async function getLimitsForDate(env: Env, date: Date): Promise<Record<str
     if (periodResult) {
       const limits = JSON.parse(periodResult.limits_json);
       console.log(`[getLimitsForDate] Found limits by period ${periodResult.period}, valid_from: ${new Date(periodResult.valid_from * 1000).toISOString()}, limits keys: ${Object.keys(limits).join(', ')}`);
+      console.log(`[getLimitsForDate] IMPORTANT limits I=${limits['I']}, J=${limits['J']}, K=${limits['K']}`);
       return limits;
     }
+    
+    console.log(`[getLimitsForDate] WARNING: No limits found for period ${period}, checking all periods in DB...`);
+    const allPeriods = await env.DB.prepare(`
+      SELECT period FROM monotributo_limits_history ORDER BY period DESC LIMIT 5
+    `).all<{ period: string }>();
+    console.log(`[getLimitsForDate] Available periods in DB: ${allPeriods.results?.map((p: any) => p.period).join(', ') || 'none'}`);
     
     // Si no se encuentra por período, buscar por valid_from
     const result = await env.DB.prepare(`
