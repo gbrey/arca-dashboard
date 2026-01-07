@@ -303,10 +303,19 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
     // Determinar próxima recategorización
     const nextRecategorization = periodResults[0];
     
+    // Usar los límites del período de recategorización para allCategories
+    // Esto asegura que la referencia de categorías muestre los límites correctos
+    const limitsForNextRecategorization = nextRecategorization ? 
+      await getLimitsForDate(env, new Date(Date.UTC(
+        nextRecategorization.deadline.getFullYear(),
+        nextRecategorization.deadline.getMonth(),
+        1, 0, 0, 0
+      ))) : currentLimits;
+    
     const response = {
       currentCategory,
       currentCategoryInfo,
-      allCategories: currentLimits, // Usar límites actuales en lugar de hardcodeados
+      allCategories: limitsForNextRecategorization, // Usar límites del período de recategorización
       
       nextRecategorization,
       periods: periodResults,
