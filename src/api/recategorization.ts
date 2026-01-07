@@ -595,11 +595,14 @@ export async function getLimitsForDate(env: Env, date: Date): Promise<Record<str
     console.log(`[getLimitsForDate] Also checking period: ${period}`);
     
     // Primero intentar buscar por período exacto (más preciso)
+    console.log(`[getLimitsForDate] Executing query: SELECT ... WHERE period = '${period}'`);
     const periodResult = await env.DB.prepare(`
       SELECT limits_json, period, valid_from FROM monotributo_limits_history 
       WHERE period = ?
       LIMIT 1
     `).bind(period).first<{ limits_json: string; period: string; valid_from: number }>();
+    
+    console.log(`[getLimitsForDate] Query result: ${periodResult ? 'FOUND' : 'NOT FOUND'}`);
     
     if (periodResult) {
       const limits = JSON.parse(periodResult.limits_json);
@@ -612,7 +615,9 @@ export async function getLimitsForDate(env: Env, date: Date): Promise<Record<str
     const allPeriods = await env.DB.prepare(`
       SELECT period FROM monotributo_limits_history ORDER BY period DESC LIMIT 5
     `).all<{ period: string }>();
-    console.log(`[getLimitsForDate] Available periods in DB: ${allPeriods.results?.map((p: any) => p.period).join(', ') || 'none'}`);
+    const availablePeriods = allPeriods.results?.map((p: any) => p.period).join(', ') || 'none';
+    console.log(`[getLimitsForDate] Available periods in DB: ${availablePeriods}`);
+    console.log(`[getLimitsForDate] ERROR: Looking for period '${period}' but found: ${availablePeriods}`);
     
     // Si no se encuentra por período, buscar por valid_from
     const result = await env.DB.prepare(`
