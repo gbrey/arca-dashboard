@@ -6,11 +6,19 @@ import { MONOTRIBUTO_LIMITS } from './limits';
 function getCategoryForAmount(amount: number, limits?: Record<string, number>): string {
   const limitsToUse = limits || MONOTRIBUTO_LIMITS;
   const categories = Object.entries(limitsToUse).sort((a, b) => a[1] - b[1]);
+  console.log(`[getCategoryForAmount] amount: ${amount}, using limits: ${limits ? 'provided' : 'MONOTRIBUTO_LIMITS hardcoded'}`);
+  if (limits) {
+    console.log(`[getCategoryForAmount] limits I=${limits['I']}, J=${limits['J']}, K=${limits['K']}`);
+  } else {
+    console.log(`[getCategoryForAmount] Using hardcoded MONOTRIBUTO_LIMITS I=${MONOTRIBUTO_LIMITS['I']}, J=${MONOTRIBUTO_LIMITS['J']}, K=${MONOTRIBUTO_LIMITS['K']}`);
+  }
   for (const [category, limit] of categories) {
     if (amount <= limit) {
+      console.log(`[getCategoryForAmount] Found category ${category} for amount ${amount} (limit: ${limit})`);
       return category;
     }
   }
+  console.log(`[getCategoryForAmount] Amount ${amount} exceeds all limits, returning EXCEDIDO`);
   return 'EXCEDIDO';
 }
 
