@@ -252,10 +252,13 @@ export async function getRecategorizationData(env: Env, accountId: string, userI
       const projectedTotal = periodTotal + (monthlyAverage * monthsRemaining);
       
       // Determinar categoría proyectada usando los límites vigentes para ese período
-      console.log(`[Recategorization] Period ${period.name}, projectedTotal: ${projectedTotal}, using limits: ${JSON.stringify(Object.fromEntries(Object.entries(limitsForPeriod).slice(0, 5)))}`);
+      console.log(`[Recategorization] Period ${period.name}, projectedTotal: ${projectedTotal}`);
+      console.log(`[Recategorization] Period ${period.name}, limits being used: I=${limitsForPeriod['I']}, J=${limitsForPeriod['J']}, K=${limitsForPeriod['K']}`);
+      console.log(`[Recategorization] Period ${period.name}, all limits keys: ${Object.keys(limitsForPeriod).join(', ')}`);
       const projectedCategory = getCategoryForAmount(projectedTotal, limitsForPeriod);
       const projectedCategoryInfo = getCategoryInfo(projectedCategory, limitsForPeriod);
       console.log(`[Recategorization] Period ${period.name}, projectedCategory: ${projectedCategory}, limit: ${projectedCategoryInfo.limit}`);
+      console.log(`[Recategorization] Period ${period.name}, projectedTotal ${projectedTotal} vs limits: I=${limitsForPeriod['I']}, J=${limitsForPeriod['J']}, K=${limitsForPeriod['K']}`);
       
       // Calcular máximo facturable para mantenerse en categoría actual usando límites vigentes
       const currentLimit = limitsForPeriod[currentCategory] || 0;
