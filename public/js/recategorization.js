@@ -4,7 +4,15 @@ function recategorizationApp() {
     selectedAccountId: '',
     isAdmin: false,
     loading: true,
-    data: null,
+    data: {
+      currentCategory: '',
+      currentCategoryInfo: {},
+      allCategories: {},
+      nextRecategorization: null,
+      periods: [],
+      timeline: [],
+      advice: []
+    },
     
     // Simulador
     simulatorAmount: 0,
@@ -101,7 +109,15 @@ function recategorizationApp() {
     
     async loadData() {
       if (!this.selectedAccountId) {
-        this.data = null;
+        this.data = {
+          currentCategory: '',
+          currentCategoryInfo: {},
+          allCategories: {},
+          nextRecategorization: null,
+          periods: [],
+          timeline: [],
+          advice: []
+        };
         this.categoryHistory = [];
         return;
       }
@@ -120,8 +136,19 @@ function recategorizationApp() {
         });
         
         if (response.ok) {
-          this.data = await response.json();
-          console.log('Recategorization data:', this.data);
+          const responseData = await response.json();
+          console.log('Recategorization data:', responseData);
+          
+          // Asegurar que siempre tenga la estructura correcta
+          this.data = {
+            currentCategory: responseData.currentCategory || '',
+            currentCategoryInfo: responseData.currentCategoryInfo || {},
+            allCategories: responseData.allCategories || {},
+            nextRecategorization: responseData.nextRecategorization || null,
+            periods: responseData.periods || [],
+            timeline: responseData.timeline || [],
+            advice: responseData.advice || []
+          };
           
           // Inicializar simulador con promedio actual
           if (this.data.nextRecategorization) {
@@ -131,6 +158,16 @@ function recategorizationApp() {
         } else {
           const error = await response.json();
           console.error('Error loading data:', error);
+          // Mantener estructura vacía pero válida
+          this.data = {
+            currentCategory: '',
+            currentCategoryInfo: {},
+            allCategories: {},
+            nextRecategorization: null,
+            periods: [],
+            timeline: [],
+            advice: []
+          };
         }
         
         // Cargar historial de categorías
@@ -138,6 +175,16 @@ function recategorizationApp() {
         
       } catch (error) {
         console.error('Error loading recategorization data:', error);
+        // Mantener estructura vacía pero válida
+        this.data = {
+          currentCategory: '',
+          currentCategoryInfo: {},
+          allCategories: {},
+          nextRecategorization: null,
+          periods: [],
+          timeline: [],
+          advice: []
+        };
       }
       
       this.loading = false;
